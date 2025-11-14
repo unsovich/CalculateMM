@@ -40,7 +40,7 @@ git add .
 git commit -m "Initial commit"
 
 # Добавьте remote репозиторий (замените YOUR_USERNAME на ваш GitHub username)
-git remote add origin https://github.com/YOUR_USERNAME/medical-nutrition-calculator.git
+git remote add origin https://github.com/unsovich/calculatemm.git
 
 # Загрузите файлы
 git branch -M main
@@ -54,7 +54,7 @@ git push -u origin main
 3. В разделе "Source" выберите ветку `main` и папку `/ (root)`
 4. Нажмите "Save"
 5. Через несколько минут ваше приложение будет доступно по адресу:
-   `https://YOUR_USERNAME.github.io/medical-nutrition-calculator/`
+   `https://unsovich.github.io/calculatemm/`
 
 ## Альтернативные варианты размещения
 
