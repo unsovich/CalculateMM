@@ -1,0 +1,181 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Расчет рациона медицинского питания</title>
+    <link rel="stylesheet" href="styles.css">
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+</head>
+<body>
+    <div class="container">
+        <header>
+            <h1>🍽️ Расчет рациона медицинского питания</h1>
+            <p class="subtitle">Калькулятор рациона с автоматическим расчетом ИМТ и основного обмена</p>
+        </header>
+
+        <main>
+            <div class="calculator-section">
+                <h2>Расчет рациона питания</h2>
+                
+                <div class="controls-section">
+                    <div class="form-row">
+                        <div class="form-group">
+                            <label for="patientWeight">Вес пациента (кг):</label>
+                            <input type="number" id="patientWeight" min="0.1" step="0.1" placeholder="Введите вес">
+                        </div>
+                        <div class="form-group">
+                            <label for="patientHeight">Рост пациента (см):</label>
+                            <input type="number" id="patientHeight" min="1" step="0.1" placeholder="Введите рост">
+                        </div>
+                        <div class="form-group">
+                            <label for="patientAge">Возраст пациента (лет):</label>
+                            <input type="number" id="patientAge" min="0" step="0.1" placeholder="Введите возраст">
+                        </div>
+                    </div>
+                    <div class="form-row">
+                        <div class="form-group">
+                            <label for="patientGender">Пол:</label>
+                            <select id="patientGender">
+                                <option value="male">Мужской</option>
+                                <option value="female">Женский</option>
+                            </select>
+                        </div>
+                        <div class="form-group">
+                            <label for="activityLevel">Уровень активности:</label>
+                            <select id="activityLevel">
+                                <option value="1.2">Минимальная (лежачий больной)</option>
+                                <option value="1.375">Низкая (сидячий образ жизни)</option>
+                                <option value="1.55" selected>Умеренная (легкая активность)</option>
+                                <option value="1.725">Высокая (регулярные упражнения)</option>
+                                <option value="1.9">Очень высокая (интенсивные тренировки)</option>
+                            </select>
+                        </div>
+                    </div>
+                    
+                    <!-- Отображение ИМТ и основного обмена -->
+                    <div class="metabolism-info" id="metabolismInfo" style="display: none;">
+                        <div class="info-cards">
+                            <div class="info-card">
+                                <div class="info-label">Индекс массы тела (ИМТ)</div>
+                                <div class="info-value" id="bmiValue">-</div>
+                                <div class="info-interpretation" id="bmiInterpretation"></div>
+                            </div>
+                            <div class="info-card">
+                                <div class="info-label">Основной обмен (ОО)</div>
+                                <div class="info-value" id="bmrValue">-</div>
+                                <div class="info-unit">ккал/сутки</div>
+                                <div class="info-formula" id="bmrFormula"></div>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <button class="btn btn-primary" id="calculateBtn">Рассчитать рацион</button>
+                </div>
+
+                <div class="results-section" id="resultsSection" style="display: none;">
+                    <h3>Результаты расчета</h3>
+                    <div class="summary-cards">
+                        <div class="card">
+                            <div class="card-title">Калорийность</div>
+                            <div class="card-value" id="totalCalories">0</div>
+                            <div class="card-unit">ккал/день</div>
+                        </div>
+                        <div class="card">
+                            <div class="card-title">Белки</div>
+                            <div class="card-value" id="totalProteins">0</div>
+                            <div class="card-unit">г/день</div>
+                        </div>
+                        <div class="card">
+                            <div class="card-title">Жиры</div>
+                            <div class="card-value" id="totalFats">0</div>
+                            <div class="card-unit">г/день</div>
+                        </div>
+                        <div class="card">
+                            <div class="card-title">Углеводы</div>
+                            <div class="card-value" id="totalCarbs">0</div>
+                            <div class="card-unit">г/день</div>
+                        </div>
+                    </div>
+
+                    <div class="diet-plan">
+                        <h3>Рекомендуемый рацион</h3>
+                        <div id="dietTable"></div>
+                    </div>
+
+                    <button class="btn btn-secondary" id="exportResultBtn">Экспортировать результат в Excel</button>
+                </div>
+            </div>
+
+            <!-- Секция поиска продуктов -->
+            <div class="products-search-section">
+                <div class="section-header">
+                    <h2>Поиск продуктов</h2>
+                    <button class="btn btn-secondary" id="searchMedpitanieBtn">🔍 Поиск на medpitanie.ru</button>
+                </div>
+                <div class="search-section">
+                    <input type="text" id="searchInput" placeholder="Введите название продукта для поиска на medpitanie.ru..." class="search-input">
+                </div>
+                <div id="medpitanieResults" class="medpitanie-results" style="display: none;"></div>
+            </div>
+
+            <div class="error-message" id="errorMessage" style="display: none;"></div>
+        </main>
+
+        <footer>
+            <p>Приложение для расчета медицинского питания</p>
+        </footer>
+    </div>
+
+    <!-- Модальное окно для добавления продукта -->
+    <div class="modal" id="productModal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h2 id="modalTitle">Добавить продукт</h2>
+                <button class="modal-close" id="closeModal">&times;</button>
+            </div>
+            <div class="modal-body">
+                <form id="productForm">
+                    <input type="hidden" id="productId">
+                    <div class="form-group">
+                        <label for="productName">Название продукта *</label>
+                        <input type="text" id="productName" required placeholder="Введите название">
+                    </div>
+                    <div class="form-row">
+                        <div class="form-group">
+                            <label for="productCalories">Калории (ккал/100г) *</label>
+                            <input type="number" id="productCalories" min="0" step="0.1" required placeholder="0">
+                        </div>
+                        <div class="form-group">
+                            <label for="productProteins">Белки (г/100г) *</label>
+                            <input type="number" id="productProteins" min="0" step="0.1" required placeholder="0">
+                        </div>
+                    </div>
+                    <div class="form-row">
+                        <div class="form-group">
+                            <label for="productFats">Жиры (г/100г) *</label>
+                            <input type="number" id="productFats" min="0" step="0.1" required placeholder="0">
+                        </div>
+                        <div class="form-group">
+                            <label for="productCarbs">Углеводы (г/100г) *</label>
+                            <input type="number" id="productCarbs" min="0" step="0.1" required placeholder="0">
+                        </div>
+                    </div>
+                    <div class="form-group">
+                        <label for="productDescription">Описание (необязательно)</label>
+                        <textarea id="productDescription" rows="3" placeholder="Дополнительная информация о продукте"></textarea>
+                    </div>
+                    <div class="modal-actions">
+                        <button type="button" class="btn btn-secondary" id="cancelBtn">Отмена</button>
+                        <button type="submit" class="btn btn-primary">Сохранить</button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+
+    <script src="database.js"></script>
+    <script src="initialData.js"></script>
+    <script src="app.js"></script>
+</body>
+</html>
