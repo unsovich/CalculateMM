@@ -1,9 +1,10 @@
 // Инициализация приложения
 document.addEventListener('DOMContentLoaded', async () => {
     try {
+        initSupabase();
         await db.init();
-        // Инициализируем начальные данные, если база пуста
         await initializeInitialData();
+        await loadProductsToSelect();
         initCalculator();
         initProductsSearch();
         initModal();
@@ -11,6 +12,27 @@ document.addEventListener('DOMContentLoaded', async () => {
         showError('Ошибка инициализации базы данных: ' + error.message);
     }
 });
+
+// Загрузка продуктов в выпадающий список
+async function loadProductsToSelect() {
+    const selectElement = document.getElementById('selectedProduct');
+    if (!selectElement) return;
+
+    try {
+        const products = await ProductsAPI.getAll();
+
+        if (products.length === 0) {
+            selectElement.innerHTML = '<option value="">Нет доступных продуктов. Добавьте продукты в базу.</option>';
+            return;
+        }
+
+        selectElement.innerHTML = '<option value="">-- Выберите смесь --</option>' +
+            products.map(p => `<option value="${p.id}">${escapeHtml(p.name)}</option>`).join('');
+    } catch (error) {
+        console.error('Ошибка загрузки продуктов:', error);
+        selectElement.innerHTML = '<option value="">Ошибка загрузки продуктов</option>';
+    }
+}
 
 // Инициализация поиска продуктов
 function initProductsSearch() {
@@ -388,44 +410,68 @@ async function calculateDiet() {
     const age = parseFloat(document.getElementById('patientAge').value);
     const gender = document.getElementById('patientGender').value;
     const activityLevel = parseFloat(document.getElementById('activityLevel').value);
-    
+    const selectedProductId = document.getElementById('selectedProduct').value;
+
     if (!weight || !height || age === undefined || age === null) {
         showError('Пожалуйста, заполните все обязательные поля');
         return;
     }
-    
+
+    if (!selectedProductId) {
+        showError('Пожалуйста, выберите смесь для расчета');
+        return;
+    }
+
     try {
-        // Расчет базового метаболизма
         const bmr = calculateBMR(weight, height, age, gender);
-        
-        // Общий расход энергии
         const totalCalories = Math.round(bmr * activityLevel);
-        
-        // Распределение макронутриентов (стандартные рекомендации)
-        const proteins = Math.round(totalCalories * 0.15 / 4); // 15% от калорий, 4 ккал/г
-        const fats = Math.round(totalCalories * 0.30 / 9); // 30% от калорий, 9 ккал/г
-        const carbs = Math.round(totalCalories * 0.55 / 4); // 55% от калорий, 4 ккал/г
-        
-        // Получаем все продукты из базы
-        const products = await db.getAllProducts();
-        
-        if (products.length === 0) {
-            showError('База данных продуктов пуста. Используйте поиск на medpitanie.ru для добавления продуктов.');
+
+        const proteins = Math.round(totalCalories * 0.15 / 4);
+        const fats = Math.round(totalCalories * 0.30 / 9);
+        const carbs = Math.round(totalCalories * 0.55 / 4);
+
+        const selectedProduct = await ProductsAPI.getById(selectedProductId);
+
+        if (!selectedProduct) {
+            showError('Выбранный продукт не найден');
             return;
         }
-        
-        // Генерируем рацион
-        const diet = generateDiet(products, totalCalories, proteins, fats, carbs);
-        
-        // Отображаем результаты
+
+        const diet = generateDietWithProduct(selectedProduct, totalCalories, proteins, fats, carbs);
+
         displayResults(totalCalories, proteins, fats, carbs, diet);
-        
+
         document.getElementById('resultsSection').style.display = 'block';
         document.getElementById('resultsSection').scrollIntoView({ behavior: 'smooth' });
-        
+
     } catch (error) {
         showError('Ошибка расчета: ' + error.message);
     }
+}
+
+// Генерация рациона с использованием выбранного продукта
+function generateDietWithProduct(product, targetCalories, targetProteins, targetFats, targetCarbs) {
+    const diet = [];
+
+    const productCaloriesPerGram = product.calories / 100;
+    const amount = targetCalories / productCaloriesPerGram;
+
+    const productCalories = (amount / 100) * product.calories;
+    const productProteins = (amount / 100) * product.proteins;
+    const productFats = (amount / 100) * product.fats;
+    const productCarbs = (amount / 100) * product.carbs;
+
+    diet.push({
+        name: product.name,
+        amount: Math.round(amount * 10) / 10,
+        calories: Math.round(productCalories * 10) / 10,
+        proteins: Math.round(productProteins * 10) / 10,
+        fats: Math.round(productFats * 10) / 10,
+        carbs: Math.round(productCarbs * 10) / 10,
+        caloriesPer100g: product.calories
+    });
+
+    return diet;
 }
 
 // Генерация рациона
@@ -677,14 +723,19 @@ function showSuccess(message) {
 // Инициализация начальных данных
 async function initializeInitialData() {
     try {
-        const existingProducts = await db.getAllProducts();
-        
-        // Если база пуста, загружаем начальные данные
+        const existingProducts = await ProductsAPI.getAll();
+
         if (existingProducts.length === 0 && typeof initialProducts !== 'undefined') {
-            console.log('Загрузка начальных данных продуктов...');
-            for (const product of initialProducts) {
-                await db.addProduct(product);
-            }
+            console.log('Загрузка начальных данных продуктов в Supabase...');
+            const productsToInsert = initialProducts.map(p => ({
+                name: p.name,
+                calories: p.calories,
+                proteins: p.proteins,
+                fats: p.fats,
+                carbs: p.carbs,
+                description: p.description || ''
+            }));
+            await ProductsAPI.bulkInsert(productsToInsert);
             console.log(`Загружено ${initialProducts.length} продуктов`);
         }
     } catch (error) {

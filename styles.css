@@ -386,6 +386,16 @@ tbody tr:last-child td {
     font-size: 1em;
     font-family: inherit;
     transition: border-color 0.3s ease;
+    background: white;
+}
+
+.form-group select {
+    cursor: pointer;
+}
+
+.form-group select:disabled {
+    background: #f5f5f5;
+    cursor: not-allowed;
 }
 
 .form-group input:focus,
