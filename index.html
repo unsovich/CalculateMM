@@ -26,48 +26,6 @@
             font-weight: bold;
         }
 
-        /* Стили для секции аутентификации */
-        #authSection {
-            background-color: #f8f8f8;
-            padding: 15px;
-            border-radius: 8px;
-            margin-bottom: 20px;
-            border: 1px solid #eee;
-        }
-
-        .auth-form {
-            display: flex;
-            gap: 10px;
-            align-items: flex-end;
-            margin-top: 10px;
-            /* Исправлено: добавлено перенос для лучшей адаптивности */
-            flex-wrap: wrap;
-        }
-
-        .auth-form .form-group {
-            /* Убедимся, что поля формы занимают место, не ломая верстку */
-            flex-grow: 1;
-            min-width: 150px;
-            margin-bottom: 0;
-        }
-
-        .auth-status-bar {
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-            font-weight: bold;
-            color: #2980b9;
-        }
-
-        .btn-logout {
-            background-color: #e74c3c;
-            color: white;
-            border: none;
-            cursor: pointer;
-            padding: 8px 15px;
-            border-radius: 4px;
-        }
-
         /* Адаптивная таблица результатов */
         .results-table {
             width: 100%;
@@ -84,353 +42,385 @@
         }
 
         .results-table th {
-            background-color: #f2f2f2;
-            font-weight: bold;
-        }
-
-        .results-table tr:nth-child(even) {
-            background-color: #f9f9f9;
+            background-color: #eaf6ff;
+            color: #2980b9;
         }
 
         .results-table .highlight {
             font-weight: bold;
-            color: #2980b9;
+            color: #2c3e50;
+            background-color: #f7f7f7;
         }
 
-        .ration-summary-row {
+        @media screen and (max-width: 600px) {
+            .results-table thead {
+                display: none;
+            }
+
+            .results-table,
+            .results-table tbody,
+            .results-table tr,
+            .results-table td {
+                display: block;
+                width: 100%;
+            }
+
+            .results-table tr {
+                margin-bottom: 10px;
+                border: 1px solid #ccc;
+            }
+
+            .results-table td {
+                text-align: right;
+                padding-left: 50%;
+                position: relative;
+            }
+
+            .results-table td::before {
+                content: attr(data-label);
+                position: absolute;
+                left: 6px;
+                width: 45%;
+                padding-right: 10px;
+                white-space: nowrap;
+                font-weight: bold;
+                text-align: left;
+                color: #555;
+            }
+
+            .results-table .highlight {
+                background-color: transparent;
+            }
+        }
+
+        /* СТИЛИ: Наглядное отображение результатов */
+        .results-section {
+            padding: 15px 0;
+            border-top: 1px solid #eee;
+            margin-bottom: 20px;
+        }
+
+        .result-row {
             display: flex;
-            gap: 15px;
+            gap: 20px;
             margin-bottom: 20px;
             flex-wrap: wrap;
         }
 
-        .ration-summary-card {
+        .result-card {
             flex: 1;
-            min-width: 200px;
-            border: 1px solid #ddd;
-            border-left: 5px solid #2ecc71;
-            padding: 15px;
-            border-radius: 5px;
-            box-shadow: 0 1px 3px rgba(0, 0, 0, 0.05);
+            min-width: 280px;
+            background-color: #ffffff;
+            padding: 20px;
+            border-radius: 12px;
+            box-shadow: 0 4px 15px rgba(0, 0, 0, 0.1);
+            text-align: center;
+            transition: transform 0.2s, box-shadow 0.2s;
+            border-left: 5px solid #3498db;
         }
 
-        .ration-summary-card h5 {
-            margin: 0 0 5px 0;
-            font-size: 0.9em;
+        .result-card:hover {
+            transform: translateY(-3px);
+            box-shadow: 0 6px 20px rgba(0, 0, 0, 0.15);
+        }
+
+        .result-card h5 {
+            margin: 0 0 10px 0;
+            font-size: 1em;
             color: #7f8c8d;
+            font-weight: 400;
         }
 
         .metric-value {
-            font-size: 1.5em;
+            font-size: 2.2em;
             font-weight: 700;
-            color: #34495e;
-        }
-
-        .metric-value.small-metric-value {
-            font-size: 1.2em;
+            color: #2c3e50;
+            margin: 5px 0;
         }
 
         .metric-status {
-            font-size: 0.8em;
-            color: #95a5a6;
-            margin-top: 5px;
-        }
-
-        .results-section {
-            padding-top: 15px;
-        }
-
-        /* Стили, которые должны быть унаследованы из styles.css */
-        /* Предполагается, что эти стили определены в styles.css:
-        .form-row, .form-group, .btn, .result-card
-        Если они не определены, добавьте их сюда.
-        */
-
-        /* Стили модального окна */
-        .modal {
-            display: none;
-            position: fixed;
-            z-index: 1000;
-            left: 0;
-            top: 0;
-            width: 100%;
-            height: 100%;
-            overflow: auto;
-            background-color: rgba(0, 0, 0, 0.4);
-            justify-content: center;
-            align-items: center;
-        }
-
-        .modal-content {
-            background-color: #fff;
-            padding: 20px;
-            border-radius: 8px;
-            max-width: 900px;
-            width: 90%;
-            max-height: 90vh;
-            overflow-y: auto;
-            box-shadow: 0 5px 15px rgba(0, 0, 0, 0.3);
-            position: relative;
-        }
-
-        .close {
-            color: #aaa;
-            float: right;
-            font-size: 28px;
-            font-weight: bold;
-            position: absolute;
-            top: 10px;
-            right: 20px;
-            cursor: pointer;
-        }
-
-        .close:hover,
-        .close:focus {
-            color: #000;
-            text-decoration: none;
-            cursor: pointer;
-        }
-
-        .modal-actions {
-            display: flex;
-            justify-content: flex-end;
-            gap: 10px;
-            margin-top: 20px;
-        }
-
-        .data-table {
-            width: 100%;
-            border-collapse: collapse;
-            margin-top: 15px;
-        }
-
-        .data-table th,
-        .data-table td {
-            padding: 8px;
-            border: 1px solid #ddd;
-        }
-
-        .data-table .btn-small {
-            padding: 5px 10px;
-            font-size: 0.8em;
-            margin-right: 5px;
-        }
-
-        .empty-state {
-            text-align: center;
-            color: #7f8c8d;
+            font-size: 0.9em;
             font-style: italic;
+            color: #3498db;
+            margin: 0;
+        }
+
+        .result-bmi {
+            border-left-color: #e74c3c;
+        }
+
+        .result-bmr {
+            border-left-color: #f39c12;
+        }
+
+        .result-daily-need {
+            border-left-color: #27ae60;
+        }
+
+        .ration-summary-row {
+            gap: 15px;
+            margin-top: 15px;
+            margin-bottom: 5px;
+        }
+
+        .ration-summary-card {
+            flex: 1;
+            min-width: 45%;
+            padding: 15px;
+        }
+
+        .ration-summary-card h5 {
+            font-size: 0.9em;
+        }
+
+        .ration-summary-card .small-metric-value {
+            font-size: 1.5em;
+        }
+
+        .ration-summary-card .metric-status {
+            font-size: 1.1em;
+            font-weight: 500;
+            color: #555;
+            font-style: normal;
+        }
+
+        .result-portion-powder {
+            border-left-color: #9b59b6;
+        }
+
+        .result-portion-volume {
+            border-left-color: #1abc9c;
+        }
+
+        @media screen and (max-width: 900px) {
+            .result-row {
+                flex-direction: column;
+                gap: 10px;
+            }
+
+            .result-card,
+            .ration-summary-card {
+                min-width: 100%;
+                flex: none;
+            }
+
+            .btn.full-width-mobile {
+                width: 100%;
+                margin-top: 15px !important;
+            }
         }
     </style>
 </head>
 
 <body>
 <div class="container">
-    <h1>Расчет рациона медицинского питания</h1>
+    <header>
+        <h1>🍽️ Расчет рациона медицинского питания</h1>
+    </header>
 
-    <section id="authSection">
-        <div class="auth-status-bar">
-            <p id="authStatus">Статус: Загрузка...</p>
-            <button id="logoutBtn" class="btn-logout" style="display: none;">Выход</button>
-        </div>
+    <div style="text-align: right; margin-bottom: 20px;">
+        <button id="searchMedpitanieBtn" class="btn btn-secondary">Управление продуктами</button>
+    </div>
+    <main>
+        <div class="calculator-section">
 
-        <form id="authForm" class="auth-form">
-            <div class="form-group">
-                <label for="authEmail">Email</label>
-                <input type="email" id="authEmail" required>
-            </div>
-            <div class="form-group">
-                <label for="authPassword">Пароль</label>
-                <input type="password" id="authPassword" required>
-            </div>
-            <button type="submit" class="btn btn-primary" id="signInBtn" style="margin-top: 7px;">Войти</button>
-            <button type="button" class="btn btn-secondary" id="signUpBtn" style="margin-top: 7px;">Регистрация</button>
-        </form>
-    </section>
+            <div class="controls-section">
+                <h2>Данные пациента</h2>
+                <div class="form-row">
+                    <div class="form-group">
+                        <label for="patientWeight">Вес (кг):</label>
+                        <input type="number" id="patientWeight" min="0.1" step="0.1" placeholder="Введите вес"
+                               required>
+                    </div>
+                    <div class="form-group">
+                        <label for="patientHeight">Рост (см):</label>
+                        <input type="number" id="patientHeight" min="1" step="0.1" placeholder="Введите рост"
+                               required>
+                    </div>
+                    <div class="form-group">
+                        <label for="patientAge">Возраст (лет):</label>
+                        <input type="number" id="patientAge" min="0" step="1" placeholder="Введите возраст"
+                               required>
+                    </div>
+                    <div class="form-group">
+                        <label for="patientGender">Пол:</label>
+                        <select id="patientGender" required>
+                            <option value="male">Мужской</option>
+                            <option value="female">Женский</option>
+                        </select>
+                    </div>
+                </div>
 
-    <section id="patientData">
-        <h2>Параметры пациента</h2>
-        <div class="form-row">
-            <div class="form-group">
-                <label for="patientWeight">Вес (кг)</label>
-                <input type="number" id="patientWeight" placeholder="Введите вес" value="25" min="1" step="0.1">
-            </div>
-            <div class="form-group">
-                <label for="patientHeight">Рост (см)</label>
-                <input type="number" id="patientHeight" placeholder="Введите рост" value="130" min="1" step="0.1">
-            </div>
-            <div class="form-group">
-                <label for="patientAge">Возраст (лет)</label>
-                <input type="number" id="patientAge" placeholder="Введите возраст" value="8" min="1" step="1">
-            </div>
-            <div class="form-group">
-                <label for="patientGender">Пол</label>
-                <select id="patientGender">
-                    <option value="female">Женский</option>
-                    <option value="male">Мужской</option>
-                </select>
-            </div>
-            <div class="form-group">
-                <label for="activityFactor">Фактор активности</label>
-                <select id="activityFactor">
-                    <option value="1.2">1.2 - Постельный режим</option>
-                    <option value="1.375">1.375 - Легкая</option>
-                    <option value="1.55" selected>1.55 - Умеренная</option>
-                    <option value="1.725">1.725 - Высокая</option>
-                    <option value="1.9">1.9 - Экстремальная</option>
-                </select>
-            </div>
-        </div>
+                <div class="form-row">
+                    <div class="form-group full-width">
+                        <label for="activityFactor">Фактор активности (ФА):</label>
+                        <select id="activityFactor" required>
+                            <option value="1.2" selected>1.2 - Постельный режим</option>
+                            <option value="1.5">1.5 - Палатный режим (умеренная)</option>
+                            <option value="1.7">1.7 - Общий режим (высокая)</option>
+                            <option value="2.0">2.0 - Тяжелая травма / Сепсис (макс)</option>
+                        </select>
+                    </div>
+                </div>
+                <div class="results-section">
+                    <h4>📊 Результаты расчета</h4>
+                    <div class="result-row">
+                        <div class="result-card result-bmi">
+                            <h5>Индекс массы тела (ИМТ)</h5>
+                            <p id="bmiResult" class="metric-value">0.0 кг/м²</p>
+                            <p id="bmiStatus" class="metric-status">Введите данные</p>
+                        </div>
+                        <div class="result-card result-bmr">
+                            <h5>Основной обмен (ОО)</h5>
+                            <p id="bmrResult" class="metric-value">0 ккал/сутки</p>
+                            <p class="metric-status">Формула Харриса-Бенедикта</p>
+                        </div>
+                        <div class="result-card result-daily-need">
+                            <h5>Суточная потребность (СП)</h5>
+                            <p id="dailyNeedResult" class="metric-value" data-daily-need="0">0 ккал/сутки</p>
+                            <p id="dailyNeedStatus" class="metric-status">ОО * Фактор активности</p>
+                        </div>
+                    </div>
+                </div>
 
-        <div class="results-row">
-            <div class="result-card">
-                <h5>ИМТ</h5>
-                <p id="bmiResult" class="metric-value">0.0 кг/м²</p>
-                <p id="bmiStatus" class="metric-status">Введите данные</p>
-            </div>
-            <div class="result-card">
-                <h5>Основной Обмен (ОО)</h5>
-                <p id="bmrResult" class="metric-value">0 ккал/сутки</p>
-                <p class="metric-status">По Харрису-Бенедикту</p>
-            </div>
-            <div class="result-card">
-                <h5>Суточная потребность (СП)</h5>
-                <p id="dailyNeedResult" class="metric-value">0 ккал/сутки</p>
-                <p id="dailyNeedStatus" class="metric-status">ОО * Фактор активности</p>
-            </div>
-        </div>
+                <h2>Параметры рациона</h2>
+                <div class="form-row">
+                    <div class="form-group">
+                        <label for="selectedProduct">Смесь:</label>
+                        <select id="selectedProduct" required>
+                            <option value="">-- Загрузка... --</option>
+                        </select>
+                    </div>
+                    <div class="form-group">
+                        <label for="concentrationType">Тип разведения:</label>
+                        <select id="concentrationType" required>
+                            <option value="ordinary">Обычное (1.0 ккал/мл)</option>
+                            <option value="hyper">Гиперкалорическое (1.5 ккал/мл)</option>
+                        </select>
+                    </div>
+                </div>
 
-        <div class="results-section">
-            <h3>💦 Желаемый Водный Объем (ЖВО)</h3>
-            <div class="result-row ration-summary-row">
-                <div class="result-card ration-summary-card" style="border-left-color: #2980b9;">
-                    <h5>Общий ЖВО поддержания</h5>
-                    <p id="totalFluidNeed" class="metric-value">0 мл/сутки</p>
-                    <p id="fluidStatus" class="metric-status">Результат появится после ввода веса</p>
+                <div class="form-row">
+                    <div class="form-group">
+                        <label for="numMeals">Количество приемов пищи (шт.):</label>
+                        <input type="number" id="numMeals" min="1" step="1" value="4" required>
+                    </div>
                 </div>
             </div>
-            <div id="fluidBreakdown" style="font-size: 0.9em; margin-top: -10px; margin-bottom: 20px; padding: 10px; border-top: 1px dashed #eee;">
+
+            <div id="rationResult" class="result-box">
+            </div>
+
+        </div>
+
+        <div class="calculator-section fluid-calculator" style="margin-top: 30px;">
+            <h2>💧 Калькулятор суточного объема жидкости (ЖВО) для детей</h2>
+
+            <div class="controls-section">
+                <p>Расчет ведется по стандартной формуле **Холлидея-Сегара** (Holliday-Segar) на основе **Веса
+                    пациента** из основной формы.</p>
+
+                <div class="results-section" id="fluidResult">
+                    <div class="result-row" style="justify-content: center;">
+                        <div class="result-card result-daily-need" style="flex: 0 0 50%; max-width: 50%;">
+                            <h5>Расчетный суточный объем (ЖВО)</h5>
+                            <p class="metric-value" id="totalFluidNeed">0 мл/сутки</p>
+                            <p class="metric-status" id="fluidStatus">Результат появится после ввода веса</p>
+                        </div>
+                    </div>
+                    <div id="fluidBreakdown"
+                         style="margin-top: 15px; padding-top: 10px; border-top: 1px dashed #ddd; font-size: 0.9em; text-align: center;">
+                    </div>
+                </div>
             </div>
         </div>
 
-    </section>
-
-    <section id="rationCalculator">
-        <h2>Расчет рациона на питательной смеси</h2>
-
-        <div class="form-row">
-            <div class="form-group">
-                <label for="selectedProduct">Выбранная смесь</label>
-                <select id="selectedProduct">
-                    <option value="">-- Загрузка продуктов... --</option>
-                </select>
-            </div>
-            <div class="form-group">
-                <label for="concentrationType">Тип разведения</label>
-                <select id="concentrationType">
-                    <option value="ordinary" selected>Обычное (≈1.0 ккал/мл)</option>
-                    <option value="hyper">Гиперкалорическое (≈1.5 ккал/мл)</option>
-                </select>
-            </div>
-            <div class="form-group">
-                <label for="numMeals">Количество приемов пищи (N)</label>
-                <input type="number" id="numMeals" value="4" min="1" step="1">
-            </div>
+        <div id="additionalFluidResult">
         </div>
-
-        <div id="rationResult" class="results-container">
-        </div>
-
-        <div id="additionalFluidResult" class="results-container">
-        </div>
-
-    </section>
-
-    <button id="searchMedpitanieBtn" class="btn btn-secondary" style="margin-top: 20px; margin-bottom: 20px;">Управление продуктами (База)</button>
-
-    <div id="errorMessage" class="error-message"></div>
+    </main>
 </div>
 
 <div id="productModal" class="modal">
-    <div class="modal-content">
-        <span class="close" id="closeModalBtn">&times;</span>
-        <h2 id="modalTitle">Добавить/Редактировать продукт</h2>
-
-        <p id="modalAuthStatus" style="font-weight: bold; margin-bottom: 15px;"></p>
+    <div class="modal-content" style="max-width: 900px; width: 90%; padding: 25px;">
+        <span class="close-btn" id="closeModalBtn">&times;</span>
+        <h2 id="modalTitle">Добавить новый продукт</h2>
+        <div id="errorMessage" class="error-message" style="display: none;"></div>
 
         <form id="productForm">
             <input type="hidden" id="productId">
 
-            <div class="form-group">
-                <label for="productName">Название продукта*</label>
-                <input type="text" id="productName" placeholder="Нутризон, Клинутрен и т.д." required>
+            <div class="form-row">
+                <div class="form-group full-width">
+                    <label for="productName">Название продукта *</label>
+                    <input type="text" id="productName" required placeholder="Например: Нутризон Эдванст Пептик">
+                </div>
             </div>
 
+            <h3>Состав (на 100г сухого порошка)</h3>
             <div class="form-row">
                 <div class="form-group">
-                    <label for="productCalories">Ккал/100г (сух. продукт)</label>
-                    <input type="number" id="productCalories" placeholder="450" step="0.1">
-                    <p style="font-size: 0.8em; color: #7f8c8d;">* Если не задано, будет рассчитано по БЖУ</p>
+                    <label for="productCalories">Калории (ккал/100г) *</label>
+                    <input type="number" id="productCalories" min="0" step="0.01" placeholder="0">
                 </div>
                 <div class="form-group">
-                    <label for="productProteins">Белки (г/100г)</label>
-                    <input type="number" id="productProteins" placeholder="18" step="0.1">
-                </div>
-                <div class="form-group">
-                    <label for="productFats">Жиры (г/100г)</label>
-                    <input type="number" id="productFats" placeholder="20" step="0.1">
-                </div>
-                <div class="form-group">
-                    <label for="productCarbs">Углеводы (г/100г)</label>
-                    <input type="number" id="productCarbs" placeholder="50" step="0.1">
+                    <label for="productProteins">Белки (г/100г) *</label>
+                    <input type="number" id="productProteins" min="0" step="0.01" required placeholder="0">
                 </div>
             </div>
-
             <div class="form-row">
                 <div class="form-group">
-                    <label for="productScoopWeight">Вес мерной ложки (г)*</label>
-                    <input type="number" id="productScoopWeight" placeholder="4.6" step="0.1" required>
+                    <label for="productFats">Жиры (г/100г) *</label>
+                    <input type="number" id="productFats" min="0" step="0.01" required placeholder="0">
                 </div>
                 <div class="form-group">
-                    <label for="productPackageAmount">Вес упаковки (г)</label>
-                    <input type="number" id="productPackageAmount" placeholder="400" step="1">
+                    <label for="productCarbs">Углеводы (г/100г) *</label>
+                    <input type="number" id="productCarbs" min="0" step="0.01" required placeholder="0">
                 </div>
             </div>
 
-            <h4 style="margin-top: 20px;">Параметры разведения (Обычное ≈1.0 ккал/мл)*</h4>
+            <h3>Структура продукта</h3>
             <div class="form-row">
                 <div class="form-group">
-                    <label for="productScoopsOrdinary">Ложек на порцию*</label>
-                    <input type="number" id="productScoopsOrdinary" placeholder="5" step="0.1" required>
+                    <label for="productScoopWeight">Мерная ложка (г)</label>
+                    <input type="number" id="productScoopWeight" min="0" step="0.1" placeholder="Вес мерной ложки">
                 </div>
                 <div class="form-group">
-                    <label for="productWaterOrdinary">Вода на порцию (мл)*</label>
-                    <input type="number" id="productWaterOrdinary" placeholder="45" step="1" required>
-                </div>
-                <div class="form-group">
-                    <label for="servingVolume_ordinary">Объем готовой порции (мл)</label>
-                    <input type="number" id="servingVolume_ordinary" placeholder="55" step="1">
-                    <p style="font-size: 0.8em; color: #7f8c8d;">*Если пусто, объем будет рассчитан</p>
+                    <label for="productPackageAmount">Банка (г)</label>
+                    <input type="number" id="productPackageAmount" min="0" step="1" placeholder="Вес банки">
                 </div>
             </div>
 
-            <h4 style="margin-top: 20px;">Параметры разведения (Гиперкалорическое ≈1.5 ккал/мл)</h4>
+            <h3>Обычное разведение (1.0 ккал/мл)</h3>
             <div class="form-row">
                 <div class="form-group">
-                    <label for="productScoopsHyper">Ложек на порцию</label>
-                    <input type="number" id="productScoopsHyper" placeholder="5" step="0.1">
+                    <label for="productScoopsOrdinary">Количество ложек (шт)</label>
+                    <input type="number" id="productScoopsOrdinary" min="0" step="0.1" placeholder="Например, 4">
                 </div>
                 <div class="form-group">
-                    <label for="productWaterHyper">Вода на порцию (мл)</label>
-                    <input type="number" id="productWaterHyper" placeholder="30" step="1">
+                    <label for="productWaterOrdinary">Количество воды (мл)</label>
+                    <input type="number" id="productWaterOrdinary" min="0" step="1" placeholder="Например, 85">
                 </div>
                 <div class="form-group">
-                    <label for="servingVolume_hyper">Объем готовой порции (мл)</label>
-                    <input type="number" id="servingVolume_hyper" placeholder="38" step="1">
-                    <p style="font-size: 0.8em; color: #7f8c8d;">*Если пусто, объем будет рассчитан</p>
+                    <label for="servingVolume_ordinary">Объем готовой смеси (мл)</label>
+                    <input type="number" id="servingVolume_ordinary" step="1" min="0">
                 </div>
             </div>
 
+            <h3>Гиперкалорическое разведение (1.5 ккал/мл)</h3>
+            <div class="form-row">
+                <div class="form-group">
+                    <label for="productScoopsHyper">Количество ложек (шт)</label>
+                    <input type="number" id="productScoopsHyper" min="0" step="0.1" placeholder="Например, 6">
+                </div>
+                <div class="form-group">
+                    <label for="productWaterHyper">Количество воды (мл)</label>
+                    <input type="number" id="productWaterHyper" min="0" step="1" placeholder="Например, 77">
+                </div>
+                <div class="form-group">
+                    <label for="servingVolume_hyper">Объем готовой смеси (мл)</label>
+                    <input type="number" id="servingVolume_hyper" step="1" min="0">
+                </div>
+            </div>
 
             <div class="form-group">
                 <label for="productApplicationMethod">Метод применения (краткое описание)</label>
@@ -446,7 +436,7 @@
 
             <div class="modal-actions">
                 <button type="button" class="btn btn-secondary" id="cancelBtn">Отмена</button>
-                <button type="submit" class="btn btn-primary" id="saveProductBtn" disabled>Сохранить</button>
+                <button type="submit" class="btn btn-primary">Сохранить</button>
             </div>
         </form>
 
