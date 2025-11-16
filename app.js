@@ -34,19 +34,75 @@ function roundToTwo(num) {
     return Math.round(num * 100) / 100;
 }
 
+// --- Инициализация Supabase ---
+// Вставьте сюда Ваши реальные ключи!
+// Для простого публичного доступа их можно хранить в коде.
+const SUPABASE_URL = 'https://kyxyuhttgyfihakaajsn.supabase.co';
+const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Imt5eHl1aHR0Z3lmaWhha2FhanNuIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjMyNzI4ODksImV4cCI6MjA3ODg0ODg4OX0.lti749JHmkQLvkmxp0Bcey4xQwU_e23_ZzCztGuuiKo';
+
+const supabase = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+
+// --- Новый объект API для Supabase ---
+var ProductsAPI = {
+    async getAll() {
+        const { data, error } = await supabase
+            .from('products')
+            .select('*');
+        if (error) throw new Error(error.message);
+        return data;
+    },
+
+    async getById(id) {
+        // В Supabase все ID - это числа.
+        const { data, error } = await supabase
+            .from('products')
+            .select('*')
+            .eq('id', id)
+            .single(); // Ожидаем один результат
+        if (error) {
+            if (error.code !== 'PGRST116') throw new Error(error.message); // Игнорируем ошибку "не найдено"
+            return null;
+        }
+        return data;
+    },
+
+    // CRUD-функции (addProduct, updateProduct, deleteProduct)
+    // Эти функции будут требовать настройки, чтобы записывать данные обратно в Supabase.
+    // Для простоты, сначала можно настроить только чтение (getAll, getById).
+    async addProduct(product) {
+        const { data, error } = await supabase.from('products').insert([product]).select();
+        if (error) throw new Error(error.message);
+        return data[0];
+    },
+
+    async updateProduct(id, product) {
+        const { data, error } = await supabase.from('products').update(product).eq('id', id).select();
+        if (error) throw new Error(error.message);
+        return data[0];
+    },
+
+    async deleteProduct(id) {
+        const { error } = await supabase.from('products').delete().eq('id', id);
+        if (error) throw new Error(error.message);
+        return true;
+    }
+};
+
+
 // --- Инициализация приложения ---
 document.addEventListener('DOMContentLoaded', async () => {
     try {
-        await db.init();
-        await initializeInitialData();
+        // await db.init(); // УДАЛИТЬ: больше не используем IndexedDB
+        // await initializeInitialData(); // УДАЛИТЬ: данные грузятся из Supabase
         await loadProductsToSelect();
         initCalculator();
         initRationListeners();
         initProductsSearch();
         initModal();
         initFluidCalculator();
+        // showSuccess('База данных успешно подключена через Supabase!'); // Опционально
     } catch (error) {
-        showError('Ошибка инициализации базы данных: ' + error.message);
+        showError('Ошибка инициализации базы данных Supabase: ' + error.message);
     }
 });
 
@@ -65,37 +121,6 @@ async function loadProductsToSelect() {
     } catch (error) {
         console.error('Ошибка загрузки продуктов:', error);
         selectElement.innerHTML = '<option value="">Ошибка загрузки продуктов</option>';
-    }
-}
-
-async function initializeInitialData() {
-    try {
-        const existingProducts = await ProductsAPI.getAll();
-        if (existingProducts.length === 0 && typeof initialProducts !== 'undefined') {
-            console.log('Загрузка начальных данных продуктов в базу...');
-            const productsToInsert = initialProducts.map(p => ({
-                name: p.name,
-                calories: p.calories || null,
-                proteins: p.proteins || null,
-                fats: p.fats || null,
-                carbs: p.carbs || null,
-                description: p.description || '',
-                applicationMethod: p.applicationMethod || '',
-                scoopWeight: p.scoopWeight || null,
-                packageAmount: p.packageAmount || null,
-                scoopsPerServing_ordinary: p.scoopsPerServing_ordinary || null,
-                waterPerServing_ordinary: p.waterPerServing_ordinary || null,
-                servingVolume_ordinary: p.servingVolume_ordinary || null,
-                scoopsPerServing_hyper: p.scoopsPerServing_hyper || null,
-                waterPerServing_hyper: p.waterPerServing_hyper || null,
-                servingVolume_hyper: p.servingVolume_hyper || null,
-            }));
-            await ProductsAPI.bulkInsert(productsToInsert);
-            console.log(`Загружено ${initialProducts.length} продуктов`);
-        }
-    } catch (error) {
-        console.error('Ошибка загрузки начальных данных:', error);
-        showError('Ошибка загрузки начальных данных: ' + error.message);
     }
 }
 
