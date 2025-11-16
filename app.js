@@ -43,7 +43,7 @@ function roundToTwo(num) {
 // ПОЖАЛУЙСТА, ЗАМЕНИТЕ ЭТОТ КЛЮЧ НА ВАШ АКТУАЛЬНЫЙ ПУБЛИЧНЫЙ ANON KEY.
 const SUPABASE_URL = 'https://kyxyuhttgyfihakaajsn.supabase.co';
 // !!! ЗАМЕНИТЕ ЭТОТ КЛЮЧ НА ВАШ ПУБЛИЧНЫЙ ANON KEY !!!
-const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Imt5eHl1aHR0Z3lmaWhha2FhanNuIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTcwNzM5MjgyNywiZXhwIjoxNzM4OTI4ODI3fQ.x0GfxNq6Aq2UReH-IGO2iQ_x5zJLX4M';
+const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Imt5eHl1aHR0Z3lmaWhha2FhanNuIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjMyNzI4ODksImV4cCI6MjA3ODg0ODg4OX0.lti749JHmkQLvkmxp0Bcey4xQwU_e23_ZzCztGuuiKo';
 
 // Корректная инициализация клиента Supabase, используя глобальный объект из CDN
 const supabase = window.supabase ? window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY) : null;
