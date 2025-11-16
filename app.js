@@ -36,28 +36,38 @@ function roundToTwo(num) {
 
 // --- Инициализация Supabase ---
 // Вставьте сюда Ваши реальные ключи!
-// Для простого публичного доступа их можно хранить в коде.
 const SUPABASE_URL = 'https://kyxyuhttgyfihakaajsn.supabase.co';
 const SUPABASE_ANON_KEY = 'sb_publishable_x0GfxNq6Aq2UReH-IGO2iQ_x5zJLX4M';
 
-const supabase = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+// ИСПРАВЛЕНИЕ ОШИБКИ:
+// Используем window.supabase, который должен быть доступен, т.к. библиотека подключена через CDN в index.html
+if (!window.supabase) {
+    showError("Ошибка: Библиотека Supabase не загружена. Проверьте подключение в index.html");
+}
+const { createClient } = window.supabase;
+const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 
 // --- Новый объект API для Supabase ---
 var ProductsAPI = {
     async getAll() {
+        // Убедитесь, что RLS разрешает чтение для анонимного пользователя
         const { data, error } = await supabase
             .from('products')
-            .select('*');
+            .select('*')
+            .order('name', { ascending: true }); // Добавим сортировку для удобства
         if (error) throw new Error(error.message);
         return data;
     },
 
     async getById(id) {
-        // В Supabase все ID - это числа.
+        // В Supabase все ID - это числа, но для безопасности лучше парсить из строки.
+        const numericId = parseInt(id, 10);
+        if (isNaN(numericId)) return null;
+
         const { data, error } = await supabase
             .from('products')
             .select('*')
-            .eq('id', id)
+            .eq('id', numericId)
             .single(); // Ожидаем один результат
         if (error) {
             if (error.code !== 'PGRST116') throw new Error(error.message); // Игнорируем ошибку "не найдено"
@@ -66,9 +76,6 @@ var ProductsAPI = {
         return data;
     },
 
-    // CRUD-функции (addProduct, updateProduct, deleteProduct)
-    // Эти функции будут требовать настройки, чтобы записывать данные обратно в Supabase.
-    // Для простоты, сначала можно настроить только чтение (getAll, getById).
     async addProduct(product) {
         const { data, error } = await supabase.from('products').insert([product]).select();
         if (error) throw new Error(error.message);
@@ -76,13 +83,15 @@ var ProductsAPI = {
     },
 
     async updateProduct(id, product) {
-        const { data, error } = await supabase.from('products').update(product).eq('id', id).select();
+        const numericId = parseInt(id, 10);
+        const { data, error } = await supabase.from('products').update(product).eq('id', numericId).select();
         if (error) throw new Error(error.message);
         return data[0];
     },
 
     async deleteProduct(id) {
-        const { error } = await supabase.from('products').delete().eq('id', id);
+        const numericId = parseInt(id, 10);
+        const { error } = await supabase.from('products').delete().eq('id', numericId);
         if (error) throw new Error(error.message);
         return true;
     }
@@ -92,8 +101,7 @@ var ProductsAPI = {
 // --- Инициализация приложения ---
 document.addEventListener('DOMContentLoaded', async () => {
     try {
-        // await db.init(); // УДАЛИТЬ: больше не используем IndexedDB
-        // await initializeInitialData(); // УДАЛИТЬ: данные грузятся из Supabase
+        // УДАЛЕНЫ УСТАРЕВШИЕ ВЫЗОВЫ: db.init() и initializeInitialData()
         await loadProductsToSelect();
         initCalculator();
         initRationListeners();
@@ -102,7 +110,7 @@ document.addEventListener('DOMContentLoaded', async () => {
         initFluidCalculator();
         // showSuccess('База данных успешно подключена через Supabase!'); // Опционально
     } catch (error) {
-        showError('Ошибка инициализации базы данных Supabase: ' + error.message);
+        showError('Ошибка инициализации приложения: ' + error.message);
     }
 });
 
@@ -111,16 +119,27 @@ async function loadProductsToSelect() {
     if (!selectElement) return;
 
     try {
+        // Показываем, что идет загрузка
+        selectElement.innerHTML = '<option value="">-- Загрузка продуктов... --</option>';
+
         const products = await ProductsAPI.getAll();
+
         if (products.length === 0) {
             selectElement.innerHTML = '<option value="">Нет доступных продуктов. Добавьте продукты в базу.</option>';
             return;
         }
+
+        // Заполняем список
         selectElement.innerHTML = '<option value="">-- Выберите смесь --</option>' +
             products.map(p => `<option value="${p.id}">${escapeHtml(p.name)}</option>`).join('');
+
+        // Если есть старый расчет, пересчитываем его после загрузки
+        updatePatientMetrics();
+
     } catch (error) {
         console.error('Ошибка загрузки продуктов:', error);
         selectElement.innerHTML = '<option value="">Ошибка загрузки продуктов</option>';
+        showError('Ошибка загрузки списка продуктов из Supabase. Проверьте RLS и ключи.');
     }
 }
 
@@ -137,6 +156,7 @@ function calculateBMI(weight, height) {
 function calculateBMR(weight, height, age, gender) {
     if (weight > 0 && height > 0 && age > 0) {
         let bmr;
+        // Формула Харриса-Бенедикта (исходная, 1919 г.)
         if (gender === 'male') {
             bmr = 66.5 + (13.75 * weight) + (5.003 * height) - (6.75 * age);
         } else {
@@ -193,7 +213,10 @@ function updatePatientMetrics() {
         dailyNeedStatus.textContent = 'ОО * Фактор активности';
     }
 
+    // Сохраняем суточную потребность в атрибуте для использования в calculateRation
     dailyNeedResult.dataset.dailyNeed = dailyNeed ? dailyNeed.toFixed(0) : '0';
+
+    // Обновляем расчет ЖВО
     calculateFluidVolume();
 
     const selectedProductId = document.getElementById('selectedProduct').value;
@@ -213,6 +236,7 @@ function initCalculator() {
             element.addEventListener('input', updatePatientMetrics);
         }
     });
+    // Вызываем при инициализации для отображения дефолтных нулей
     updatePatientMetrics();
 }
 
@@ -267,7 +291,7 @@ async function calculateRation() {
             return;
         }
 
-        // --- НОВАЯ ЛОГИКА: Расчет калорийности по БЖУ, если не задана явно ---
+        // --- ЛОГИКА: Расчет калорийности по БЖУ, если не задана явно ---
         let calorieSource = 'заданная';
 
         if (!product.calories || product.calories <= 0) {
@@ -286,7 +310,7 @@ async function calculateRation() {
             rationResultDiv.innerHTML = "<p class='error-message-inline'>Ошибка: Калорийность продукта не задана (ни напрямую, ни через БЖУ).</p>";
             return;
         }
-        // --- КОНЕЦ НОВОЙ ЛОГИКИ ---
+        // --- КОНЕЦ ЛОГИКИ ---
 
         let scoopsPerServing, waterPerServing, concentrationLabel, servingVolume;
         let dilutionWarning = ''; // Переменная для предупреждения
@@ -319,7 +343,8 @@ async function calculateRation() {
             } else {
                 // FALLBACK: Calculate Hyper from Ordinary (assuming 1.5x concentration)
                 scoopsPerServing = scoops_ord;
-                waterPerServing = water_ord / 1.5; // Уменьшаем воду на 1/1.5 для повышения концентрации
+                // Уменьшаем воду на 1/1.5 для повышения концентрации. Округляем до 1 знака.
+                waterPerServing = roundToTwo(water_ord / 1.5);
                 servingVolume = null; // Forces recalculation based on new water volume + powder density
 
                 dilutionWarning = `<p class='error-message-inline' style="color: #f39c12; font-size: 0.9em; margin-bottom: 20px; padding: 10px; border: 1px dashed #f39c12; border-radius: 5px;">
@@ -331,29 +356,37 @@ async function calculateRation() {
         const powderPerServingGrams = scoopsPerServing * product.scoopWeight;
 
         let actualServingVolume;
+        // Если объем готовой порции задан явно
         if (servingVolume && servingVolume > 0) {
             actualServingVolume = servingVolume;
         } else {
-            const volumePowderML = powderPerServingGrams / 0.7; // Примерная плотность порошка
+            // Если не задан, рассчитываем, исходя из объема воды и объема порошка
+            const volumePowderML = powderPerServingGrams / 0.7; // Примерная плотность порошка (0.7 г/мл)
             actualServingVolume = waterPerServing + volumePowderML;
         }
 
         const caloriesPerServing = (powderPerServingGrams / 100) * product.calories;
 
+        // Энергетическая плотность (ккал/мл)
         const actualEnergyDensity = caloriesPerServing / actualServingVolume;
+
+        // Общий объем готовой смеси
         const rationVolume = dailyNeed / actualEnergyDensity;
 
         const ratioPowderToVolume = powderPerServingGrams / actualServingVolume;
         const ratioWaterToPowder = waterPerServing / powderPerServingGrams;
 
+        // Общие компоненты
         const totalPowderGrams = rationVolume * ratioPowderToVolume;
         const totalWaterML = totalPowderGrams * ratioWaterToPowder;
 
+        // Общее БЖУ и Калории (Точный расчет)
         const totalCalories = (totalPowderGrams / 100) * product.calories;
         const totalProteins = (totalPowderGrams / 100) * product.proteins;
         const totalFats = (totalPowderGrams / 100) * product.fats;
         const totalCarbs = (totalPowderGrams / 100) * product.carbs;
 
+        // Порции
         const mealVolume = rationVolume / numMeals;
         const mealPowderGrams = totalPowderGrams / numMeals;
         const mealWaterML = totalWaterML / numMeals;
@@ -361,6 +394,7 @@ async function calculateRation() {
 
         // --- Расчет порции с округлением ложек ---
         const roundedMealScoops = Math.round(mealScoops);
+        // Проверяем, достаточно ли значимо округление
         const isRoundingApplied = Math.abs(mealScoops - roundedMealScoops) >= 0.05;
 
         const roundedMealPowderGrams = roundedMealScoops * product.scoopWeight;
@@ -368,8 +402,10 @@ async function calculateRation() {
 
         let roundedMealTotalVolume;
         if (servingVolume && servingVolume > 0) {
+            // Если исходный объем задан, используем пропорцию
             roundedMealTotalVolume = (roundedMealPowderGrams / powderPerServingGrams) * actualServingVolume;
         } else {
+            // Иначе рассчитываем
             const roundedVolumePowderML = roundedMealPowderGrams / 0.7;
             roundedMealTotalVolume = roundedMealWaterML + roundedVolumePowderML;
         }
@@ -384,7 +420,7 @@ async function calculateRation() {
         const differenceText = calorieDifference >= 0
             ? `+${Math.abs(calorieDifference).toFixed(0)} ккал`
             : `-${Math.abs(calorieDifference).toFixed(0)} ккал`;
-        const differenceClass = (Math.abs(calorieDifference) / dailyNeed) < 0.05
+        const differenceClass = (Math.abs(calorieDifference) / dailyNeed) < 0.05 // Допустимое отклонение < 5%
             ? 'success-message-inline'
             : (calorieDifference >= 0 ? 'success-message-inline' : 'error-message-inline');
 
@@ -568,13 +604,14 @@ function displayAdditionalFluid(fluidMaintenanceNeed, totalVolume, totalWaterInM
 function calculateMaintenanceFluid(weight) {
     if (!weight || weight <= 0) return 0;
 
+    // Формула Холлидея-Сегара (Holliday-Segar)
     let fluid = 0;
     if (weight <= 10) {
-        fluid = weight * 100;
+        fluid = weight * 100; // 100 мл/кг
     } else if (weight <= 20) {
-        fluid = 1000 + (weight - 10) * 50;
+        fluid = 1000 + (weight - 10) * 50; // 1000 мл за первые 10 кг + 50 мл/кг за следующие 10 кг
     } else {
-        fluid = 1000 + 500 + (weight - 20) * 20;
+        fluid = 1000 + 500 + (weight - 20) * 20; // 1500 мл за первые 20 кг + 20 мл/кг за каждый кг свыше 20
     }
     return Math.round(fluid);
 }
@@ -592,7 +629,7 @@ function calculateFluidVolume() {
         return;
     }
 
-    if (weight > 54) {
+    if (weight > 54) { // Формула не рекомендуется для веса > 54 кг
         totalFluidNeedEl.textContent = '— мл/сутки';
         fluidStatusEl.textContent = 'Расчет применим для детей до 54 кг';
         fluidBreakdownEl.innerHTML = '<p style="color: #f39c12;">⚠ Для пациентов с весом > 54 кг используйте другие формулы.</p>';
@@ -623,6 +660,7 @@ function calculateFluidVolume() {
 }
 
 function initFluidCalculator() {
+    // ЖВО рассчитывается автоматически через updatePatientMetrics, вызываемую по input'у веса
     const weightInput = document.getElementById('patientWeight');
     if (weightInput) {
         calculateFluidVolume();
@@ -681,7 +719,7 @@ function initModal() {
         });
     }
 
-    // Загрузка списка продуктов при открытии
+    // Загрузка списка продуктов при инициализации
     loadProductsTable();
 }
 
@@ -742,6 +780,21 @@ async function loadProductForEdit(productId) {
 
 async function saveProduct() {
     const productId = document.getElementById('productId').value;
+
+    // Проверка обязательных полей
+    if (!document.getElementById('productName').value ||
+        !document.getElementById('productScoopWeight').value ||
+        !(document.getElementById('productCalories').value ||
+            (document.getElementById('productProteins').value &&
+                document.getElementById('productFats').value &&
+                document.getElementById('productCarbs').value)) ||
+        !document.getElementById('productScoopsOrdinary').value ||
+        !document.getElementById('productWaterOrdinary').value)
+    {
+        showError('Пожалуйста, заполните обязательные поля: Название, Вес ложки, Калорийность (или БЖУ), и параметры Обычного разведения.');
+        return;
+    }
+
 
     const productData = {
         name: document.getElementById('productName').value,
@@ -806,7 +859,7 @@ async function loadProductsTable() {
     }
 }
 
-// Глобальные функции для кнопок
+// Глобальные функции для кнопок (нужны для вызова из HTML атрибутов onclick)
 window.editProduct = async function (productId) {
     await openModal(productId);
 };
