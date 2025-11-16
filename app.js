@@ -639,12 +639,6 @@ window.deleteProduct = async function (productId) {
         return;
     }
 
-    // Проверка, что пользователь не пытается удалить системный ID, если таковые предусмотрены (например, ID <= 100)
-    if (productId && productId <= 100) {
-        showError('Удаление системных продуктов (ID 1-100) запрещено.');
-        return;
-    }
-
     if (!confirm('Вы уверены, что хотите удалить этот продукт?')) {
         return;
     }
@@ -705,11 +699,6 @@ document.addEventListener('DOMContentLoaded', () => {
             applicationMethod: document.getElementById('productApplicationMethod').value,
             description: document.getElementById('productDescription').value,
         };
-
-        if (data.id && data.id <= 100) {
-            showError('Запрещено редактировать продукты с ID от 1 до 100 (данные по умолчанию). Используйте ID > 100.');
-            return;
-        }
 
         try {
             await ProductsAPI.save(data);
