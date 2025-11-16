@@ -37,7 +37,7 @@ function roundToTwo(num) {
 // --- Инициализация Supabase ---
 // Вставьте сюда Ваши реальные ключи!
 const SUPABASE_URL = 'https://kyxyuhttgyfihakaajsn.supabase.co';
-const SUPABASE_ANON_KEY = 'sb_publishable_x0GfxNq6Aq2UReH-IGO2iQ_x5zJLX4M';
+const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Imt5eHl1aHR0Z3lmaWhha2FhanNuIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjMyNzI4ODksImV4cCI6MjA3ODg0ODg4OX0.lti749JHmkQLvkmxp0Bcey4xQwU_e23_ZzCztGuuiKo';
 
 // ИСПРАВЛЕНИЕ ОШИБКИ:
 // Используем window.supabase, который должен быть доступен, т.к. библиотека подключена через CDN в index.html
