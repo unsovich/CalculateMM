@@ -35,17 +35,131 @@ function roundToTwo(num) {
 }
 
 // --- Инициализация Supabase ---
-// Вставьте сюда Ваши реальные ключи!
 const SUPABASE_URL = 'https://kyxyuhttgyfihakaajsn.supabase.co';
 const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Imt5eHl1aHR0Z3lmaWhha2FhanNuIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjMyNzI4ODksImV4cCI6MjA3ODg0ODg4OX0.lti749JHmkQLvkmxp0Bcey4xQwU_e23_ZzCztGuuiKo';
 
-// ИСПРАВЛЕНИЕ ОШИБКИ:
-// Используем window.supabase, который должен быть доступен, т.к. библиотека подключена через CDN в index.html
 if (!window.supabase) {
     showError("Ошибка: Библиотека Supabase не загружена. Проверьте подключение в index.html");
 }
 const { createClient } = window.supabase;
 const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+
+
+// --- ФУНКЦИИ АУТЕНТИФИКАЦИИ ---
+
+/**
+ * Обновляет элементы интерфейса в зависимости от статуса аутентификации.
+ * @param {object | null} user - Объект пользователя Supabase или null.
+ */
+function updateAuthUI(user) {
+    const authStatus = document.getElementById('authStatus');
+    const modalAuthStatus = document.getElementById('modalAuthStatus');
+    const authForm = document.getElementById('authForm');
+    const logoutBtn = document.getElementById('logoutBtn');
+    const saveProductBtn = document.getElementById('saveProductBtn');
+
+    // Элементы, которые нужно показать/скрыть
+    const authEmail = document.getElementById('authEmail');
+    const authPassword = document.getElementById('authPassword');
+    const signInBtn = document.getElementById('signInBtn');
+    const signUpBtn = document.getElementById('signUpBtn');
+
+    if (user) {
+        // Пользователь вошел в систему
+        authStatus.textContent = `Вы вошли как: ${user.email}`;
+        modalAuthStatus.textContent = `Статус: ✅ Вход выполнен (${user.email}). Вы можете добавлять и редактировать продукты.`;
+        authStatus.style.color = '#27ae60';
+
+        authForm.style.display = 'none';
+        logoutBtn.style.display = 'inline-block';
+
+        saveProductBtn.disabled = false; // Разрешаем сохранение/добавление
+    } else {
+        // Пользователь не вошел в систему (анонимный)
+        authStatus.textContent = `Статус: Анонимный`;
+        modalAuthStatus.textContent = `Статус: ❌ Для добавления и редактирования продуктов необходимо войти в систему.`;
+        authStatus.style.color = '#e74c3c';
+
+        authForm.style.display = 'flex';
+        logoutBtn.style.display = 'none';
+
+        saveProductBtn.disabled = true; // Запрещаем сохранение/добавление
+
+        // Очищаем поля при выходе
+        if (authEmail) authEmail.value = '';
+        if (authPassword) authPassword.value = '';
+    }
+}
+
+async function signUpUser(email, password) {
+    try {
+        const { error } = await supabase.auth.signUp({ email, password });
+        if (error) throw new Error(error.message);
+
+        showSuccess('Регистрация успешна! Проверьте почту для подтверждения.');
+        // Если настроено подтверждение почты, пользователь не войдет сразу
+        // Если нет, вызываем проверку статуса
+        const { data: { user } } = await supabase.auth.getUser();
+        updateAuthUI(user);
+    } catch (error) {
+        showError('Ошибка регистрации: ' + error.message);
+    }
+}
+
+async function signInUser(email, password) {
+    try {
+        const { data: { user }, error } = await supabase.auth.signInWithPassword({ email, password });
+        if (error) throw new Error(error.message);
+
+        showSuccess('Вход выполнен успешно!');
+        updateAuthUI(user);
+    } catch (error) {
+        showError('Ошибка входа: ' + error.message);
+    }
+}
+
+async function signOutUser() {
+    try {
+        const { error } = await supabase.auth.signOut();
+        if (error) throw new Error(error.message);
+
+        showSuccess('Выход выполнен.');
+        updateAuthUI(null);
+    } catch (error) {
+        showError('Ошибка выхода: ' + error.message);
+    }
+}
+
+function initAuthListeners() {
+    const authForm = document.getElementById('authForm');
+    const signUpBtn = document.getElementById('signUpBtn');
+    const logoutBtn = document.getElementById('logoutBtn');
+
+    if (authForm) {
+        authForm.addEventListener('submit', (e) => {
+            e.preventDefault();
+            const email = document.getElementById('authEmail').value;
+            const password = document.getElementById('authPassword').value;
+            signInUser(email, password);
+        });
+    }
+
+    if (signUpBtn) {
+        signUpBtn.addEventListener('click', () => {
+            const email = document.getElementById('authEmail').value;
+            const password = document.getElementById('authPassword').value;
+            if (email && password) {
+                signUpUser(email, password);
+            } else {
+                showError('Введите email и пароль для регистрации.');
+            }
+        });
+    }
+
+    if (logoutBtn) {
+        logoutBtn.addEventListener('click', signOutUser);
+    }
+}
 
 // --- Новый объект API для Supabase ---
 var ProductsAPI = {
@@ -60,7 +174,6 @@ var ProductsAPI = {
     },
 
     async getById(id) {
-        // В Supabase все ID - это числа, но для безопасности лучше парсить из строки.
         const numericId = parseInt(id, 10);
         if (isNaN(numericId)) return null;
 
@@ -77,12 +190,14 @@ var ProductsAPI = {
     },
 
     async addProduct(product) {
+        // Требуется роль 'authenticated' для INSERT
         const { data, error } = await supabase.from('products').insert([product]).select();
         if (error) throw new Error(error.message);
         return data[0];
     },
 
     async updateProduct(id, product) {
+        // Требуется роль 'authenticated' для UPDATE
         const numericId = parseInt(id, 10);
         const { data, error } = await supabase.from('products').update(product).eq('id', numericId).select();
         if (error) throw new Error(error.message);
@@ -90,6 +205,7 @@ var ProductsAPI = {
     },
 
     async deleteProduct(id) {
+        // Требуется роль 'authenticated' для DELETE
         const numericId = parseInt(id, 10);
         const { error } = await supabase.from('products').delete().eq('id', numericId);
         if (error) throw new Error(error.message);
@@ -101,18 +217,38 @@ var ProductsAPI = {
 // --- Инициализация приложения ---
 document.addEventListener('DOMContentLoaded', async () => {
     try {
-        // УДАЛЕНЫ УСТАРЕВШИЕ ВЫЗОВЫ: db.init() и initializeInitialData()
-        await loadProductsToSelect();
+        // 1. Проверка статуса аутентификации при старте
+        const { data: { user } } = await supabase.auth.getUser();
+        updateAuthUI(user);
+
+        // 2. Инициализация слушателей
+        initAuthListeners();
         initCalculator();
         initRationListeners();
         initProductsSearch();
         initModal();
         initFluidCalculator();
-        // showSuccess('База данных успешно подключена через Supabase!'); // Опционально
+
+        // 3. Загрузка продуктов
+        await loadProductsToSelect();
+
+        // Добавляем слушатель для отслеживания изменений сессии (вход/выход)
+        supabase.auth.onAuthStateChange((event, session) => {
+            if (session) {
+                updateAuthUI(session.user);
+            } else {
+                updateAuthUI(null);
+            }
+        });
+
     } catch (error) {
         showError('Ошибка инициализации приложения: ' + error.message);
     }
 });
+
+// ... ОСТАЛЬНЫЕ ФУНКЦИИ (loadProductsToSelect, calculateBMI, updatePatientMetrics, и т.д.)
+// ОСТАВЛЕНЫ БЕЗ ИЗМЕНЕНИЙ, ТАК КАК ВЫ ИХ УЖЕ ВИДЕЛИ И ОНИ НЕ МЕНЯЮТСЯ
+// *************************************************************************
 
 async function loadProductsToSelect() {
     const selectElement = document.getElementById('selectedProduct');
@@ -143,7 +279,8 @@ async function loadProductsToSelect() {
     }
 }
 
-// --- ФУНКЦИИ РАСЧЕТА ПАЦИЕНТА ---
+// --- ФУНКЦИИ РАСЧЕТА ПАЦИЕНТА (БЕЗ ИЗМЕНЕНИЙ) ---
+
 function calculateBMI(weight, height) {
     if (weight > 0 && height > 0) {
         const heightM = height / 100;
@@ -536,7 +673,7 @@ async function calculateRation() {
     }
 }
 
-// --- НОВАЯ ФУНКЦИЯ ДЛЯ ОТОБРАЖЕНИЯ ДОПОЛНИТЕЛЬНОЙ ЖИДКОСТИ ---
+// --- НОВАЯ ФУНКЦИЯ ДЛЯ ОТОБРАЖЕНИЯ ДОПОЛНИТЕЛЬНОЙ ЖИДКОСТИ (БЕЗ ИЗМЕНЕНИЙ) ---
 function displayAdditionalFluid(fluidMaintenanceNeed, totalVolume, totalWaterInMix, isRounded) {
     const additionalFluidResultDiv = document.getElementById('additionalFluidResult');
 
@@ -600,7 +737,7 @@ function displayAdditionalFluid(fluidMaintenanceNeed, totalVolume, totalWaterInM
 }
 
 
-// --- ФУНКЦИИ РАСЧЕТА ЖВО (Желаемого Водного Объема) ДЛЯ ДЕТЕЙ ---
+// --- ФУНКЦИИ РАСЧЕТА ЖВО (Желаемого Водного Объема) ДЛЯ ДЕТЕЙ (БЕЗ ИЗМЕНЕНИЙ) ---
 function calculateMaintenanceFluid(weight) {
     if (!weight || weight <= 0) return 0;
 
@@ -667,7 +804,7 @@ function initFluidCalculator() {
     }
 }
 
-// --- ФУНКЦИИ УПРАВЛЕНИЯ ПРОДУКТАМИ И МОДАЛЬНОГО ОКНА ---
+// --- ФУНКЦИИ УПРАВЛЕНИЯ ПРОДУКТАМИ И МОДАЛЬНОГО ОКНА (С ИЗМЕНЕНИЯМИ) ---
 
 function initProductsSearch() {
     const searchBtn = document.getElementById('searchMedpitanieBtn');
@@ -683,14 +820,6 @@ function initModal() {
     const closeBtn = document.getElementById('closeModalBtn');
     const cancelBtn = document.getElementById('cancelBtn');
     const productForm = document.getElementById('productForm');
-    const searchMedpitanieBtn = document.getElementById('searchMedpitanieBtn');
-
-    // Открытие модального окна по кнопке "Управление продуктами"
-    if (searchMedpitanieBtn) {
-        searchMedpitanieBtn.addEventListener('click', () => {
-            openModal();
-        });
-    }
 
     // Закрытие модального окна
     if (closeBtn) {
@@ -715,7 +844,13 @@ function initModal() {
     if (productForm) {
         productForm.addEventListener('submit', async (e) => {
             e.preventDefault();
-            await saveProduct();
+            // Кнопка будет disabled, если пользователь не вошел, но на всякий случай проверяем
+            const saveProductBtn = document.getElementById('saveProductBtn');
+            if (!saveProductBtn.disabled) {
+                await saveProduct();
+            } else {
+                showError("Вы не авторизованы для добавления/редактирования продуктов.");
+            }
         });
     }
 
@@ -736,6 +871,10 @@ async function openModal(productId = null) {
         productForm.reset();
         document.getElementById('productId').value = '';
     }
+
+    // Обновляем статус аутентификации в модальном окне перед открытием
+    const { data: { user } } = await supabase.auth.getUser();
+    updateAuthUI(user);
 
     await loadProductsTable();
     modal.style.display = 'flex';
@@ -827,7 +966,9 @@ async function saveProduct() {
         await loadProductsToSelect();
         closeModal();
     } catch (error) {
-        showError('Ошибка сохранения продукта: ' + error.message);
+        // Ошибка RLS 'new row violates row-level security policy' будет перехвачена здесь
+        showError('Ошибка сохранения продукта: ' + error.message +
+            '. Возможно, вы не вошли в систему (требуется авторизация).');
     }
 }
 
@@ -843,13 +984,16 @@ async function loadProductsTable() {
             return;
         }
 
+        const { data: { user } } = await supabase.auth.getUser();
+        const isAuthenticated = !!user;
+
         tbody.innerHTML = products.map(product => `
             <tr>
                 <td>${escapeHtml(product.name)}</td>
                 <td>${product.calories || '—'}</td>
                 <td>
-                    <button class="btn-small btn-edit" onclick="editProduct(${product.id})">Редактировать</button>
-                    <button class="btn-small btn-delete" onclick="deleteProduct(${product.id})">Удалить</button>
+                    <button class="btn-small btn-edit" onclick="editProduct(${product.id})" ${isAuthenticated ? '' : 'disabled'}>Редактировать</button>
+                    <button class="btn-small btn-delete" onclick="deleteProduct(${product.id})" ${isAuthenticated ? '' : 'disabled'}>Удалить</button>
                 </td>
             </tr>
         `).join('');
@@ -860,11 +1004,23 @@ async function loadProductsTable() {
 }
 
 // Глобальные функции для кнопок (нужны для вызова из HTML атрибутов onclick)
+// Добавлена проверка авторизации перед действием
 window.editProduct = async function (productId) {
-    await openModal(productId);
+    const { data: { user } } = await supabase.auth.getUser();
+    if (user) {
+        await openModal(productId);
+    } else {
+        showError('Для редактирования продуктов необходимо войти в систему.');
+    }
 };
 
 window.deleteProduct = async function (productId) {
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) {
+        showError('Для удаления продуктов необходимо войти в систему.');
+        return;
+    }
+
     if (!confirm('Вы уверены, что хотите удалить этот продукт?')) {
         return;
     }
