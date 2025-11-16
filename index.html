@@ -40,10 +40,14 @@
             gap: 10px;
             align-items: flex-end;
             margin-top: 10px;
+            /* Исправлено: добавлено перенос для лучшей адаптивности */
+            flex-wrap: wrap;
         }
 
         .auth-form .form-group {
+            /* Убедимся, что поля формы занимают место, не ломая верстку */
             flex-grow: 1;
+            min-width: 150px;
             margin-bottom: 0;
         }
 
@@ -135,6 +139,12 @@
         .results-section {
             padding-top: 15px;
         }
+
+        /* Стили, которые должны быть унаследованы из styles.css */
+        /* Предполагается, что эти стили определены в styles.css:
+        .form-row, .form-group, .btn, .result-card
+        Если они не определены, добавьте их сюда.
+        */
 
         /* Стили модального окна */
         .modal {
@@ -233,8 +243,8 @@
                 <label for="authPassword">Пароль</label>
                 <input type="password" id="authPassword" required>
             </div>
-            <button type="submit" class="btn btn-primary" id="signInBtn">Войти</button>
-            <button type="button" class="btn btn-secondary" id="signUpBtn">Регистрация</button>
+            <button type="submit" class="btn btn-primary" id="signInBtn" style="margin-top: 7px;">Войти</button>
+            <button type="button" class="btn btn-secondary" id="signUpBtn" style="margin-top: 7px;">Регистрация</button>
         </form>
     </section>
 
@@ -307,7 +317,6 @@
 
     <section id="rationCalculator">
         <h2>Расчет рациона на питательной смеси</h2>
-        <button id="searchMedpitanieBtn" class="btn btn-secondary">Управление продуктами (База)</button>
 
         <div class="form-row">
             <div class="form-group">
@@ -336,6 +345,8 @@
         </div>
 
     </section>
+
+    <button id="searchMedpitanieBtn" class="btn btn-secondary" style="margin-top: 20px; margin-bottom: 20px;">Управление продуктами (База)</button>
 
     <div id="errorMessage" class="error-message"></div>
 </div>
