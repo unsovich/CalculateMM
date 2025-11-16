@@ -8,22 +8,24 @@ function escapeHtml(text) {
 }
 
 function showError(message) {
-    const errorDiv = document.getElementById('errorMessage');
-    errorDiv.textContent = message;
-    errorDiv.style.display = 'block';
-    errorDiv.className = 'error-message';
+    const inlineErrorDiv = document.querySelector('.error-message-inline') || document.getElementById('errorMessage');
+
+    inlineErrorDiv.textContent = message;
+    inlineErrorDiv.style.display = 'block';
+    inlineErrorDiv.className = 'error-message error-message-inline';
+
     setTimeout(() => {
-        errorDiv.style.display = 'none';
+        inlineErrorDiv.style.display = 'none';
     }, 5000);
 }
 
 function showSuccess(message) {
-    const errorDiv = document.getElementById('errorMessage');
-    errorDiv.textContent = message;
-    errorDiv.style.display = 'block';
-    errorDiv.className = 'success-message';
+    const successDiv = document.getElementById('errorMessage');
+    successDiv.textContent = message;
+    successDiv.style.display = 'block';
+    successDiv.className = 'success-message success-message-inline';
     setTimeout(() => {
-        errorDiv.style.display = 'none';
+        successDiv.style.display = 'none';
     }, 3000);
 }
 
@@ -35,12 +37,20 @@ function roundToTwo(num) {
 }
 
 // --- Инициализация Supabase ---
-// Вставьте сюда Ваши реальные ключи!
+// !!! ВНИМАНИЕ: ПРОБЛЕМА С АВТОРИЗАЦИЕЙ СВЯЗАНА С НЕВЕРНЫМ КЛЮЧОМ !!!
+// Здесь необходимо использовать **ПУБЛИЧНЫЙ КЛЮЧ ANON** из настроек Supabase,
+// а не service_role ключ. Ваш предыдущий ключ, вероятно, был отозван.
+// ПОЖАЛУЙСТА, ЗАМЕНИТЕ ЭТОТ КЛЮЧ НА ВАШ АКТУАЛЬНЫЙ ПУБЛИЧНЫЙ ANON KEY.
 const SUPABASE_URL = 'https://kyxyuhttgyfihakaajsn.supabase.co';
+// !!! ЗАМЕНИТЕ ЭТОТ КЛЮЧ НА ВАШ ПУБЛИЧНЫЙ ANON KEY !!!
 const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Imt5eHl1aHR0Z3lmaWhha2FhanNuIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTcwNzM5MjgyNywiZXhwIjoxNzM4OTI4ODI3fQ.x0GfxNq6Aq2UReH-IGO2iQ_x5zJLX4M';
 
 // Корректная инициализация клиента Supabase, используя глобальный объект из CDN
-const supabase = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+const supabase = window.supabase ? window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY) : null;
+
+if (!supabase) {
+    console.error("Supabase client failed to initialize.");
+}
 
 
 // --- Логика Авторизации (Supabase Auth) ---
@@ -63,6 +73,7 @@ function updateAuthUI(user) {
 
 // 1. Обработчики кнопок
 signInBtn?.addEventListener('click', async () => {
+    if (!supabase) return showError("Ошибка подключения к базе данных. Проверьте ключ Supabase.");
     const email = prompt("Введите Email для входа (через магическую ссылку Supabase):");
     if (email) {
         const { error } = await supabase.auth.signInWithOtp({
@@ -80,6 +91,7 @@ signInBtn?.addEventListener('click', async () => {
 });
 
 signOutBtn?.addEventListener('click', async () => {
+    if (!supabase) return;
     const { error } = await supabase.auth.signOut();
     if (error) {
         showError('Ошибка выхода: ' + error.message);
@@ -89,11 +101,13 @@ signOutBtn?.addEventListener('click', async () => {
 });
 
 // 2. Слушатель изменений состояния авторизации
-supabase.auth.onAuthStateChange((event, session) => {
-    updateAuthUI(session?.user);
-    // Обновляем таблицу продуктов для включения/отключения кнопок редактирования/удаления
-    loadProductsTable();
-});
+if (supabase) {
+    supabase.auth.onAuthStateChange((event, session) => {
+        updateAuthUI(session?.user);
+        // Обновляем таблицу продуктов для включения/отключения кнопок редактирования/удаления
+        loadProductsTable();
+    });
+}
 
 
 // --- ProductsAPI (Взаимодействие с базой данных) ---
@@ -104,6 +118,7 @@ const ProductsAPI = {
 
     // Получение всех продуктов
     async getAll() {
+        if (!supabase) throw new Error("Supabase клиент не инициализирован.");
         const { data, error } = await supabase
             .from(this.tableName)
             .select('*')
@@ -115,6 +130,7 @@ const ProductsAPI = {
 
     // Получение продукта по ID
     async getById(id) {
+        if (!supabase) throw new Error("Supabase клиент не инициализирован.");
         const { data, error } = await supabase
             .from(this.tableName)
             .select('*')
@@ -127,6 +143,7 @@ const ProductsAPI = {
 
     // Сохранение/Обновление продукта
     async save(productData) {
+        if (!supabase) throw new Error("Supabase клиент не инициализирован.");
         const { data: { user } } = await supabase.auth.getUser();
         if (!user) {
             throw new Error("Для сохранения продуктов необходимо войти в систему.");
@@ -158,6 +175,7 @@ const ProductsAPI = {
 
     // Удаление продукта
     async deleteProduct(id) {
+        if (!supabase) throw new Error("Supabase клиент не инициализирован.");
         const { data: { user } } = await supabase.auth.getUser();
         if (!user) {
             throw new Error("Для удаления продуктов необходимо войти в систему.");
@@ -238,11 +256,18 @@ function calculateFluidNeed(weight) {
         breakdown.push(`> 20 кг: ${roundToTwo(remaining)} кг x 20 мл/кг = ${roundToTwo(remainingFluid)} мл`);
     }
 
+    // Ограничиваем максимальный суточный объем для взрослых до 3000 мл
+    if (weight > 20 && totalFluid > 3000) {
+        totalFluid = 3000;
+        breakdown.push('<br>***Внимание: Расчет ограничен максимальным объемом 3000 мл/сутки.***');
+    }
+
     return { total: Math.round(totalFluid), breakdown: breakdown.join('<br>') };
 }
 
 // 2. Главный расчет рациона
 function calculateRation() {
+    // Получение данных из полей ввода
     const weight = parseFloat(document.getElementById('patientWeight').value);
     const height = parseFloat(document.getElementById('patientHeight').value);
     const age = parseInt(document.getElementById('patientAge').value);
@@ -250,12 +275,12 @@ function calculateRation() {
     const activityFactor = document.getElementById('activityFactor').value;
     const numMeals = parseInt(document.getElementById('numMeals').value);
 
-    // Расчет основных индексов
+    // Расчет основных индексов (всегда должен работать, даже при нулевых/пустых полях)
     const { bmi, status: bmiStatus } = calculateBMI(weight, height);
     const bmr = calculateBMR(weight, height, age, gender);
     const dailyNeed = calculateDailyNeed(bmr, activityFactor);
 
-    // Обновление результатов в UI
+    // Обновление результатов в UI для ИМТ, ОО, СП
     document.getElementById('bmiResult').textContent = `${roundToTwo(bmi)} кг/м²`;
     document.getElementById('bmiStatus').textContent = bmiStatus;
     document.getElementById('bmrResult').textContent = `${bmr} ккал/сутки`;
@@ -271,7 +296,7 @@ function calculateRation() {
     document.getElementById('fluidBreakdown').innerHTML = fluidNeed.breakdown;
 
     // Обновление плейсхолдера для дополнительной жидкости (если нет специфичной логики)
-    document.getElementById('additionalFluidNeedValue').textContent = `0 мл`;
+    document.getElementById('additionalFluidNeedValue').textContent = `${Math.max(0, fluidNeed.total - 0)} мл`; // Placeholder: total fluid - fluid from ration
     document.querySelector('#additionalFluidResult .metric-status').textContent = 'Требуется ввод данных';
 
 
@@ -281,17 +306,17 @@ function calculateRation() {
     const concentrationType = document.getElementById('concentrationType').value;
     const rationResultDiv = document.getElementById('rationResult');
 
-    if (dailyNeed === 0 || !selectedProductId || numMeals <= 0) {
+    if (dailyNeed <= 1 || !selectedProductId || numMeals <= 0) {
         rationResultDiv.innerHTML = '<p class="error-message-inline">Введите данные пациента, выберите смесь и количество приемов.</p>';
         return;
     }
 
-    // Поиск выбранного продукта из глобального списка (теперь только из Supabase)
+    // Поиск выбранного продукта из глобального списка
     const allProducts = window.PRODUCT_DATA || [];
     const selectedProduct = allProducts.find(p => String(p.id) === selectedProductId);
 
     if (!selectedProduct) {
-        rationResultDiv.innerHTML = '<p class="error-message-inline">Продукт не найден в базе данных. Попробуйте обновить страницу.</p>';
+        rationResultDiv.innerHTML = '<p class="error-message-inline">Продукт не найден в базе данных. Попробуйте обновить страницу или проверить подключение к Supabase.</p>';
         return;
     }
 
@@ -301,13 +326,13 @@ function calculateRation() {
     const scoops = isOrdinary ? selectedProduct.scoopsOrdinary : selectedProduct.scoopsHyper;
     const water = isOrdinary ? selectedProduct.waterOrdinary : selectedProduct.waterHyper;
     const servingVolume = isOrdinary ? selectedProduct.servingVolume_ordinary : selectedProduct.servingVolume_hyper;
+    const scoopWeight = selectedProduct.scoopWeight;
 
-    if (!scoops || !water || !servingVolume) {
-        rationResultDiv.innerHTML = `<p class="error-message-inline">Для выбранного продукта (${concentrationType === 'ordinary' ? 'Обычное' : 'Гиперкалорическое'}) не заданы параметры разведения. Пожалуйста, заполните их в разделе "Управление продуктами".</p>`;
+    // Проверка наличия данных для разведения
+    if (!scoops || !water || !servingVolume || !scoopWeight) {
+        rationResultDiv.innerHTML = `<p class="error-message-inline">Для выбранного продукта (${concentrationType === 'ordinary' ? 'Обычное' : 'Гиперкалорическое'}) не заданы параметры разведения. Пожалуйста, заполните: **${scoops ? '' : 'ложки,'} ${water ? '' : 'вода,'} ${servingVolume ? '' : 'объем,'} ${scoopWeight ? '' : 'вес ложки'}** в разделе "Управление продуктами".</p>`;
         return;
     }
-
-    const scoopWeight = selectedProduct.scoopWeight;
 
     // Расчет общего объема смеси
     const totalVolumeLiters = dailyNeed / (kcalPerMl * 1000); // Общий объем в литрах
@@ -333,10 +358,21 @@ function calculateRation() {
     const carbKcal = Math.round(carbDailyGrams * 4);
     const totalCalculatedKcal = proteinKcal + fatKcal + carbKcal;
 
+    // Расчет дополнительной жидкости
+    // Общее количество воды в смеси: (объем_порции - вес_порошка_в_порции) * количество_порций
+    // Используем упрощенный расчет воды: (Общий объем - Общий вес порошка в мл, где 1г ~ 1мл)
+    const totalWaterInRation = Math.round(totalVolumeMl - totalPowderGrams);
+    const additionalFluid = Math.max(0, fluidNeed.total - totalWaterInRation);
+
+    // Обновление плейсхолдера для дополнительной жидкости
+    document.getElementById('additionalFluidNeedValue').textContent = `${additionalFluid} мл`;
+    document.querySelector('#additionalFluidResult .metric-status').textContent = `ЖВО (${fluidNeed.total} мл) - Вода в смеси (${totalWaterInRation} мл)`;
+
+
     // Вывод результатов
     rationResultDiv.innerHTML = `
         <div class="results-section">
-            <h4>📄 Расчет рациона: ${selectedProduct.name} (${kcalPerMl.toFixed(1)} ккал/мл)</h4>
+            <h4>📄 Расчет рациона: ${escapeHtml(selectedProduct.name)} (${kcalPerMl.toFixed(1)} ккал/мл)</h4>
             
             <div class="result-row ration-summary-row">
                 <div class="result-card result-portion-volume ration-summary-card">
@@ -421,7 +457,7 @@ function calculateRation() {
                 </tbody>
             </table>
 
-            <h4 style="margin-top: 20px;">📦 Расход продукта (на ${Math.ceil(totalServings)} порций)</h4>
+            <h4 style="margin-top: 20px;">📦 Расход продукта (на ${totalServings} порций)</h4>
             <p style="font-size: 0.9em;">Для приготовления ${totalVolumeMl} мл смеси потребуется примерно <b>${Math.ceil(totalPowderGrams / selectedProduct.packageAmount)}</b> банок по ${selectedProduct.packageAmount} г.</p>
         </div>
     `;
@@ -443,7 +479,7 @@ async function openModal(productId = null) {
     document.getElementById('productId').value = '';
 
     // Проверка авторизации
-    const { data: { user } } = await supabase.auth.getUser();
+    const { data: { user } } = supabase ? await supabase.auth.getUser() : { data: { user: null } };
     const isAuthenticated = !!user;
 
     if (!isAuthenticated) {
@@ -529,8 +565,10 @@ async function loadProductsToSelect() {
         window.PRODUCT_DATA = finalProducts;
     } catch (error) {
         console.error('Ошибка загрузки продуктов из Supabase:', error);
+        // Выводим ошибку для пользователя
+        showError('Ошибка загрузки продуктов: ' + (error.message.includes('client not initialized') ? 'Ошибка ключа/подключения Supabase.' : error.message));
         select.innerHTML = '<option value="">-- Ошибка загрузки продуктов --</option>';
-        calculateRation();
+        calculateRation(); // Запускаем расчет, чтобы хотя бы ИМТ/ОО/СП обновились
         return;
     }
 
@@ -556,7 +594,7 @@ async function loadProductsTable() {
     if (!tbody) return;
 
     try {
-        const { data: { user } } = await supabase.auth.getUser();
+        const { data: { user } } = supabase ? await supabase.auth.getUser() : { data: { user: null } };
         const isAuthenticated = !!user;
 
         const products = await ProductsAPI.getAll();
@@ -584,6 +622,7 @@ async function loadProductsTable() {
 
 // Глобальные функции для кнопок (нужны для вызова из HTML атрибутов onclick)
 window.editProduct = async function (productId) {
+    if (!supabase) return showError("Ошибка подключения к базе данных. Проверьте ключ Supabase.");
     const { data: { user } } = await supabase.auth.getUser();
     if (user) {
         await openModal(productId);
@@ -593,6 +632,7 @@ window.editProduct = async function (productId) {
 };
 
 window.deleteProduct = async function (productId) {
+    if (!supabase) return showError("Ошибка подключения к базе данных. Проверьте ключ Supabase.");
     const { data: { user } } = await supabase.auth.getUser();
     if (!user) {
         showError('Для удаления продуктов необходимо войти в систему.');
@@ -688,7 +728,12 @@ document.addEventListener('DOMContentLoaded', () => {
     loadProductsToSelect();
 
     // Инициализация UI для авторизации (первая проверка)
-    supabase.auth.getSession().then(({ data: { session } }) => {
-        updateAuthUI(session?.user);
-    });
+    if (supabase) {
+        supabase.auth.getSession().then(({ data: { session } }) => {
+            updateAuthUI(session?.user);
+        });
+    } else {
+        showError("Критическая ошибка: Не удалось инициализировать Supabase. Проверьте ключ и подключение.");
+        calculateRation(); // Попытка обновить индексы, несмотря на ошибку
+    }
 });
