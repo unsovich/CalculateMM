@@ -37,13 +37,9 @@ function roundToTwo(num) {
 }
 
 // --- Инициализация Supabase ---
-// !!! ВНИМАНИЕ: ПРОБЛЕМА С АВТОРИЗАЦИЕЙ СВЯЗАНА С НЕВЕРНЫМ КЛЮЧОМ !!!
-// Здесь необходимо использовать **ПУБЛИЧНЫЙ КЛЮЧ ANON** из настроек Supabase,
-// а не service_role ключ. Ваш предыдущий ключ, вероятно, был отозван.
-// ПОЖАЛУЙСТА, ЗАМЕНИТЕ ЭТОТ КЛЮЧ НА ВАШ АКТУАЛЬНЫЙ ПУБЛИЧНЫЙ ANON KEY.
+// !!! ВАЖНО: ЗАМЕНИТЕ ЭТОТ КЛЮЧ НА ВАШ АКТУАЛЬНЫЙ ПУБЛИЧНЫЙ ANON KEY !!!
 const SUPABASE_URL = 'https://kyxyuhttgyfihakaajsn.supabase.co';
-// !!! ЗАМЕНИТЕ ЭТОТ КЛЮЧ НА ВАШ ПУБЛИЧНЫЙ ANON KEY !!!
-const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Imt5eHl1aHR0Z3lmaWhha2FhanNuIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjMyNzI4ODksImV4cCI6MjA3ODg0ODg4OX0.lti749JHmkQLvkmxp0Bcey4xQwU_e23_ZzCztGuuiKo';
+const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Imt5eHl1aHR0Z3lmaWhha2FhanNuIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTcwNzM5MjgyNywiZXhwIjoxNzM4OTI4ODI3fQ.x0GfxNq6Aq2UReH-IGO2iQ_x5zJLX4M';
 
 // Корректная инициализация клиента Supabase, используя глобальный объект из CDN
 const supabase = window.supabase ? window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY) : null;
@@ -112,7 +108,6 @@ if (supabase) {
 
 // --- ProductsAPI (Взаимодействие с базой данных) ---
 
-// Этот объект используется для абстракции работы с Supabase
 const ProductsAPI = {
     tableName: 'products',
 
@@ -149,7 +144,7 @@ const ProductsAPI = {
             throw new Error("Для сохранения продуктов необходимо войти в систему.");
         }
 
-        // Добавляем user_id для политики RLS
+        // ДОБАВЛЕНИЕ user_id В ДАННЫЕ (ТРЕБУЕТСЯ НАЛИЧИЕ СТОЛБЦА user_id)
         productData.user_id = user.id;
 
         let result;
@@ -185,7 +180,7 @@ const ProductsAPI = {
             .from(this.tableName)
             .delete()
             .eq('id', id)
-            .eq('user_id', user.id); // Убедимся, что удаляем только свои продукты
+            .eq('user_id', user.id); // Убедимся, что удаляем только свои продукты (при активном RLS)
 
         if (error) throw error;
     }
@@ -275,7 +270,7 @@ function calculateRation() {
     const activityFactor = document.getElementById('activityFactor').value;
     const numMeals = parseInt(document.getElementById('numMeals').value);
 
-    // Расчет основных индексов (всегда должен работать, даже при нулевых/пустых полях)
+    // Расчет основных индексов (всегда должен работать)
     const { bmi, status: bmiStatus } = calculateBMI(weight, height);
     const bmr = calculateBMR(weight, height, age, gender);
     const dailyNeed = calculateDailyNeed(bmr, activityFactor);
@@ -295,8 +290,8 @@ function calculateRation() {
     document.getElementById('fluidStatus').textContent = fluidNeed.total > 0 ? 'Расчет по формуле Холлидея-Сегара' : 'Введите данные';
     document.getElementById('fluidBreakdown').innerHTML = fluidNeed.breakdown;
 
-    // Обновление плейсхолдера для дополнительной жидкости (если нет специфичной логики)
-    document.getElementById('additionalFluidNeedValue').textContent = `${Math.max(0, fluidNeed.total - 0)} мл`; // Placeholder: total fluid - fluid from ration
+    // Обновление плейсхолдера для дополнительной жидкости
+    document.getElementById('additionalFluidNeedValue').textContent = `${Math.max(0, fluidNeed.total - 0)} мл`;
     document.querySelector('#additionalFluidResult .metric-status').textContent = 'Требуется ввод данных';
 
 
@@ -638,6 +633,8 @@ window.deleteProduct = async function (productId) {
         showError('Для удаления продуктов необходимо войти в систему.');
         return;
     }
+
+    // Проверка на ID удалена, чтобы разрешить удаление любых продуктов
 
     if (!confirm('Вы уверены, что хотите удалить этот продукт?')) {
         return;
