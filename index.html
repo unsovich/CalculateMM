@@ -218,7 +218,12 @@
         <h1>🍽️ Расчет рациона медицинского питания</h1>
     </header>
 
-    <div style="text-align: right; margin-bottom: 20px;">
+    <div style="display: flex; justify-content: flex-end; align-items: center; gap: 10px; margin-bottom: 20px;">
+        <div id="authStatusContainer" style="font-size: 0.9em; color: #555;">
+            <span id="authMessage">Вы не авторизованы.</span>
+            <button id="signInBtn" class="btn btn-primary btn-small">Войти</button>
+            <button id="signOutBtn" class="btn btn-secondary btn-small" style="display: none;">Выйти</button>
+        </div>
         <button id="searchMedpitanieBtn" class="btn btn-secondary">Управление продуктами</button>
     </div>
     <main>
@@ -310,7 +315,6 @@
 
             <div id="rationResult" class="result-box">
             </div>
-
         </div>
 
         <div class="calculator-section fluid-calculator" style="margin-top: 30px;">
