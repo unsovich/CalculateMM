@@ -1,699 +1,6 @@
-// Инициализация приложения
-document.addEventListener('DOMContentLoaded', async () => {
-    try {
-        initSupabase();
-        await db.init();
-        await initializeInitialData();
-        await loadProductsToSelect();
-        initCalculator();
-        initProductsSearch();
-        initModal();
-    } catch (error) {
-        showError('Ошибка инициализации базы данных: ' + error.message);
-    }
-});
+// app.js
 
-// Загрузка продуктов в выпадающий список
-async function loadProductsToSelect() {
-    const selectElement = document.getElementById('selectedProduct');
-    if (!selectElement) return;
-
-    try {
-        const products = await ProductsAPI.getAll();
-
-        if (products.length === 0) {
-            selectElement.innerHTML = '<option value="">Нет доступных продуктов. Добавьте продукты в базу.</option>';
-            return;
-        }
-
-        selectElement.innerHTML = '<option value="">-- Выберите смесь --</option>' +
-            products.map(p => `<option value="${p.id}">${escapeHtml(p.name)}</option>`).join('');
-    } catch (error) {
-        console.error('Ошибка загрузки продуктов:', error);
-        selectElement.innerHTML = '<option value="">Ошибка загрузки продуктов</option>';
-    }
-}
-
-// Инициализация поиска продуктов
-function initProductsSearch() {
-    const searchBtn = document.getElementById('searchMedpitanieBtn');
-    const searchInput = document.getElementById('searchInput');
-    
-    if (!searchBtn) {
-        console.error('Кнопка поиска не найдена: searchMedpitanieBtn');
-        return;
-    }
-    
-    if (!searchInput) {
-        console.error('Поле ввода поиска не найдено: searchInput');
-        return;
-    }
-    
-    console.log('Инициализация поиска продуктов: элементы найдены');
-    
-    searchBtn.addEventListener('click', (e) => {
-        e.preventDefault();
-        console.log('Кнопка поиска нажата');
-        searchMedpitanie();
-    });
-    
-    // Поиск по Enter
-    searchInput.addEventListener('keypress', (e) => {
-        if (e.key === 'Enter') {
-            e.preventDefault();
-            console.log('Нажата клавиша Enter в поле поиска');
-            const term = e.target.value.trim();
-            if (term) {
-                searchMedpitanie();
-            }
-        }
-    });
-}
-
-
-// Открытие модального окна для добавления продукта
-function openProductModal(product = null) {
-    const modal = document.getElementById('productModal');
-    const form = document.getElementById('productForm');
-    const title = document.getElementById('modalTitle');
-    
-    if (product) {
-        title.textContent = 'Редактировать продукт';
-        document.getElementById('productId').value = product.id;
-        document.getElementById('productName').value = product.name;
-        document.getElementById('productCalories').value = product.calories;
-        document.getElementById('productProteins').value = product.proteins;
-        document.getElementById('productFats').value = product.fats;
-        document.getElementById('productCarbs').value = product.carbs;
-        document.getElementById('productDescription').value = product.description || '';
-    } else {
-        title.textContent = 'Добавить продукт';
-        form.reset();
-        document.getElementById('productId').value = '';
-    }
-    
-    modal.style.display = 'flex';
-}
-
-// Делаем функцию глобальной для использования в onclick
-window.openProductModal = openProductModal;
-
-
-// Инициализация модального окна
-function initModal() {
-    const modal = document.getElementById('productModal');
-    const form = document.getElementById('productForm');
-    const closeBtn = document.getElementById('closeModal');
-    const cancelBtn = document.getElementById('cancelBtn');
-    
-    form.addEventListener('submit', async (e) => {
-        e.preventDefault();
-        await saveProduct();
-    });
-    
-    closeBtn.addEventListener('click', () => {
-        modal.style.display = 'none';
-    });
-    
-    cancelBtn.addEventListener('click', () => {
-        modal.style.display = 'none';
-    });
-    
-    modal.addEventListener('click', (e) => {
-        if (e.target === modal) {
-            modal.style.display = 'none';
-        }
-    });
-}
-
-// Сохранение продукта
-async function saveProduct() {
-    const form = document.getElementById('productForm');
-    const productId = document.getElementById('productId').value;
-    
-    const product = {
-        name: document.getElementById('productName').value.trim(),
-        calories: parseFloat(document.getElementById('productCalories').value),
-        proteins: parseFloat(document.getElementById('productProteins').value),
-        fats: parseFloat(document.getElementById('productFats').value),
-        carbs: parseFloat(document.getElementById('productCarbs').value),
-        description: document.getElementById('productDescription').value.trim()
-    };
-    
-    try {
-        if (productId) {
-            await db.updateProduct(parseInt(productId), product);
-            showSuccess('Продукт успешно обновлен');
-        } else {
-            await db.addProduct(product);
-            showSuccess('Продукт успешно добавлен в базу данных');
-        }
-        
-        document.getElementById('productModal').style.display = 'none';
-        form.reset();
-    } catch (error) {
-        showError('Ошибка сохранения продукта: ' + error.message);
-    }
-}
-
-// Поиск продуктов на medpitanie.ru
-async function searchMedpitanie() {
-    console.log('Функция searchMedpitanie вызвана');
-    
-    const searchInput = document.getElementById('searchInput');
-    if (!searchInput) {
-        console.error('Поле поиска не найдено');
-        showError('Ошибка: поле поиска не найдено');
-        return;
-    }
-    
-    const searchTerm = searchInput.value.trim();
-    console.log('Термин поиска:', searchTerm);
-    
-    if (!searchTerm) {
-        showError('Введите название продукта для поиска');
-        return;
-    }
-    
-    const resultsDiv = document.getElementById('medpitanieResults');
-    if (!resultsDiv) {
-        console.error('Контейнер результатов поиска не найден');
-        showError('Ошибка: контейнер результатов не найден');
-        return;
-    }
-    
-    console.log('Отображение результатов поиска');
-    resultsDiv.style.display = 'block';
-    resultsDiv.innerHTML = '<div class="loading">Поиск продуктов на medpitanie.ru...</div>';
-    
-    try {
-        // Формируем URL для поиска на medpitanie.ru
-        const searchUrl = `https://medpitanie.ru/search?q=${encodeURIComponent(searchTerm)}`;
-        
-        // Показываем ссылку на поиск и предлагаем добавить продукт вручную
-        resultsDiv.innerHTML = `
-            <div class="medpitanie-search-result">
-                <h4>🔍 Поиск на medpitanie.ru</h4>
-                <p>Для поиска продукта "<strong>${escapeHtml(searchTerm)}</strong>" откройте сайт medpitanie.ru:</p>
-                <div style="display: flex; gap: 10px; flex-wrap: wrap; margin: 15px 0;">
-                    <a href="${searchUrl}" target="_blank" class="external-link">🔗 Открыть поиск на medpitanie.ru</a>
-                    <a href="https://medpitanie.ru" target="_blank" class="external-link">🌐 Главная страница medpitanie.ru</a>
-                </div>
-                <div class="hint" style="background: #f0f4f8; padding: 15px; border-radius: 8px; margin: 15px 0;">
-                    <p><strong>Инструкция:</strong></p>
-                    <ol style="margin-left: 20px; margin-top: 10px;">
-                        <li>Откройте ссылку выше для поиска продукта</li>
-                        <li>Найдите нужный продукт на сайте medpitanie.ru</li>
-                        <li>Скопируйте данные о продукте (название, калории, белки, жиры, углеводы)</li>
-                        <li>Если продукт не найден или вы хотите добавить его вручную, нажмите кнопку ниже</li>
-                    </ol>
-                </div>
-                <button class="btn btn-primary" onclick="openProductModal()" style="margin-top: 10px; width: 100%;">+ Добавить продукт в базу (если не найден на сайте)</button>
-            </div>
-        `;
-        
-    } catch (error) {
-        resultsDiv.innerHTML = `
-            <div class="error-message">
-                <p><strong>Не удалось выполнить поиск.</strong></p>
-                <p>Попробуйте:</p>
-                <ul style="margin-left: 20px; margin-top: 10px;">
-                    <li>Открыть <a href="https://medpitanie.ru" target="_blank">medpitanie.ru</a> в новой вкладке</li>
-                    <li>Найти нужный продукт на сайте</li>
-                    <li>Добавить его в базу данных вручную</li>
-                </ul>
-                <button class="btn btn-primary" onclick="openProductModal()" style="margin-top: 15px; width: 100%;">+ Добавить продукт вручную</button>
-            </div>
-        `;
-    }
-}
-
-// Экспорт данных
-async function exportData() {
-    try {
-        const data = await db.exportData();
-        const blob = new Blob([data], { type: 'application/json' });
-        const url = URL.createObjectURL(blob);
-        const a = document.createElement('a');
-        a.href = url;
-        a.download = 'products_backup.json';
-        a.click();
-        URL.revokeObjectURL(url);
-        showSuccess('Данные успешно экспортированы');
-    } catch (error) {
-        showError('Ошибка экспорта данных: ' + error.message);
-    }
-}
-
-// Инициализация калькулятора
-function initCalculator() {
-    document.getElementById('calculateBtn').addEventListener('click', calculateDiet);
-    document.getElementById('exportResultBtn').addEventListener('click', exportResultToExcel);
-    
-    // Добавляем обработчики для автоматического расчета ИМТ и ОО
-    const inputs = ['patientWeight', 'patientHeight', 'patientAge', 'patientGender'];
-    inputs.forEach(id => {
-        const element = document.getElementById(id);
-        element.addEventListener('input', calculateBMIAndBMR);
-        element.addEventListener('change', calculateBMIAndBMR);
-    });
-}
-
-// Расчет основного обмена по разным формулам
-function calculateBMR(weight, height, age, gender) {
-    const ageYears = age;
-    
-    // Schofield для детей 0-3 лет
-    if (ageYears < 3) {
-        if (gender === 'male') {
-            // Мальчики 0-3 лет: BMR = (0.167 * weight + 15.174 * height - 617.6) / 4.184
-            return (0.167 * weight + 15.174 * height - 617.6) / 4.184;
-        } else {
-            // Девочки 0-3 лет: BMR = (0.071 * weight + 11.296 * height - 413.5) / 4.184
-            return (0.071 * weight + 11.296 * height - 413.5) / 4.184;
-        }
-    }
-    // Harris-Benedict для детей старше 3 лет
-    else if (ageYears < 18) {
-        if (gender === 'male') {
-            // Мальчики: BMR = 88.362 + (13.397 * weight) + (4.799 * height) - (5.677 * age)
-            return 88.362 + (13.397 * weight) + (4.799 * height) - (5.677 * age);
-        } else {
-            // Девочки: BMR = 447.593 + (9.247 * weight) + (3.098 * height) - (4.330 * age)
-            return 447.593 + (9.247 * weight) + (3.098 * height) - (4.330 * age);
-        }
-    }
-    // Миффлин-Сан Жеора для взрослых (18+)
-    else {
-        if (gender === 'male') {
-            return 10 * weight + 6.25 * height - 5 * age + 5;
-        } else {
-            return 10 * weight + 6.25 * height - 5 * age - 161;
-        }
-    }
-}
-
-// Получить название формулы для отображения
-function getBMRFormulaName(age) {
-    if (age < 3) {
-        return 'Schofield (0-3 года)';
-    } else if (age < 18) {
-        return 'Harris-Benedict (>3 лет)';
-    } else {
-        return 'Миффлин-Сан Жеора (взрослые)';
-    }
-}
-
-// Расчет ИМТ и основного обмена
-function calculateBMIAndBMR() {
-    const weight = parseFloat(document.getElementById('patientWeight').value);
-    const height = parseFloat(document.getElementById('patientHeight').value);
-    const age = parseFloat(document.getElementById('patientAge').value);
-    const gender = document.getElementById('patientGender').value;
-    
-    const metabolismInfo = document.getElementById('metabolismInfo');
-    
-    if (weight && height && age !== undefined && age !== null) {
-        // Расчет ИМТ (только для детей старше 2 лет)
-        let bmi = null;
-        let bmiDisplay = '-';
-        if (age >= 2) {
-            const heightInMeters = height / 100;
-            bmi = weight / (heightInMeters * heightInMeters);
-            bmiDisplay = bmi.toFixed(1);
-        }
-        
-        // Расчет основного обмена
-        const bmr = calculateBMR(weight, height, age, gender);
-        const formulaName = getBMRFormulaName(age);
-        
-        // Отображение результатов
-        document.getElementById('bmiValue').textContent = bmiDisplay;
-        if (age < 2) {
-            document.getElementById('bmiInterpretation').textContent = 'ИМТ рассчитывается с 2 лет';
-            document.getElementById('bmiInterpretation').className = 'info-interpretation';
-        } else {
-            // Интерпретация ИМТ
-            let interpretation = '';
-            let interpretationClass = '';
-            if (bmi < 18.5) {
-                interpretation = 'Недостаточный вес';
-                interpretationClass = 'bmi-underweight';
-            } else if (bmi < 25) {
-                interpretation = 'Нормальный вес';
-                interpretationClass = 'bmi-normal';
-            } else if (bmi < 30) {
-                interpretation = 'Избыточный вес';
-                interpretationClass = 'bmi-overweight';
-            } else {
-                interpretation = 'Ожирение';
-                interpretationClass = 'bmi-obese';
-            }
-            
-            const interpretationEl = document.getElementById('bmiInterpretation');
-            interpretationEl.textContent = interpretation;
-            interpretationEl.className = `info-interpretation ${interpretationClass}`;
-        }
-        
-        document.getElementById('bmrValue').textContent = Math.round(bmr);
-        document.getElementById('bmrFormula').textContent = formulaName;
-        
-        metabolismInfo.style.display = 'block';
-    } else {
-        metabolismInfo.style.display = 'none';
-    }
-}
-
-// Расчет разведения смеси
-// Обычное разведение: 1 мерная ложка (обычно 4.6г) на 30мл воды = 100мл готовой смеси
-// Гиперкалорическое разведение: 1 мерная ложка на 20мл воды = 75мл готовой смеси
-function calculateDilution(productAmount, productCaloriesPer100g) {
-    // Стандартные значения для сухих смесей
-    const scoopWeight = 4.6; // граммы в одной мерной ложке
-    const normalWaterPerScoop = 30; // мл воды на ложку (обычное разведение)
-    const hyperWaterPerScoop = 20; // мл воды на ложку (гиперкалорическое)
-    const normalVolumePerScoop = 100; // мл готовой смеси (обычное)
-    const hyperVolumePerScoop = 75; // мл готовой смеси (гиперкалорическое)
-    
-    // Количество мерных ложек
-    const scoops = productAmount / scoopWeight;
-    
-    // Обычное разведение
-    const normalWater = scoops * normalWaterPerScoop;
-    const normalVolume = scoops * normalVolumePerScoop;
-    const normalCalories = (normalVolume / 100) * productCaloriesPer100g;
-    
-    // Гиперкалорическое разведение
-    const hyperWater = scoops * hyperWaterPerScoop;
-    const hyperVolume = scoops * hyperVolumePerScoop;
-    const hyperCalories = (hyperVolume / 100) * productCaloriesPer100g;
-    
-    return {
-        scoops: scoops,
-        normal: {
-            water: normalWater,
-            volume: normalVolume,
-            calories: normalCalories
-        },
-        hyper: {
-            water: hyperWater,
-            volume: hyperVolume,
-            calories: hyperCalories
-        }
-    };
-}
-
-// Расчет рациона
-async function calculateDiet() {
-    const weight = parseFloat(document.getElementById('patientWeight').value);
-    const height = parseFloat(document.getElementById('patientHeight').value);
-    const age = parseFloat(document.getElementById('patientAge').value);
-    const gender = document.getElementById('patientGender').value;
-    const activityLevel = parseFloat(document.getElementById('activityLevel').value);
-    const selectedProductId = document.getElementById('selectedProduct').value;
-
-    if (!weight || !height || age === undefined || age === null) {
-        showError('Пожалуйста, заполните все обязательные поля');
-        return;
-    }
-
-    if (!selectedProductId) {
-        showError('Пожалуйста, выберите смесь для расчета');
-        return;
-    }
-
-    try {
-        const bmr = calculateBMR(weight, height, age, gender);
-        const totalCalories = Math.round(bmr * activityLevel);
-
-        const proteins = Math.round(totalCalories * 0.15 / 4);
-        const fats = Math.round(totalCalories * 0.30 / 9);
-        const carbs = Math.round(totalCalories * 0.55 / 4);
-
-        const selectedProduct = await ProductsAPI.getById(selectedProductId);
-
-        if (!selectedProduct) {
-            showError('Выбранный продукт не найден');
-            return;
-        }
-
-        const diet = generateDietWithProduct(selectedProduct, totalCalories, proteins, fats, carbs);
-
-        displayResults(totalCalories, proteins, fats, carbs, diet);
-
-        document.getElementById('resultsSection').style.display = 'block';
-        document.getElementById('resultsSection').scrollIntoView({ behavior: 'smooth' });
-
-    } catch (error) {
-        showError('Ошибка расчета: ' + error.message);
-    }
-}
-
-// Генерация рациона с использованием выбранного продукта
-function generateDietWithProduct(product, targetCalories, targetProteins, targetFats, targetCarbs) {
-    const diet = [];
-
-    const productCaloriesPerGram = product.calories / 100;
-    const amount = targetCalories / productCaloriesPerGram;
-
-    const productCalories = (amount / 100) * product.calories;
-    const productProteins = (amount / 100) * product.proteins;
-    const productFats = (amount / 100) * product.fats;
-    const productCarbs = (amount / 100) * product.carbs;
-
-    diet.push({
-        name: product.name,
-        amount: Math.round(amount * 10) / 10,
-        calories: Math.round(productCalories * 10) / 10,
-        proteins: Math.round(productProteins * 10) / 10,
-        fats: Math.round(productFats * 10) / 10,
-        carbs: Math.round(productCarbs * 10) / 10,
-        caloriesPer100g: product.calories
-    });
-
-    return diet;
-}
-
-// Генерация рациона
-function generateDiet(products, targetCalories, targetProteins, targetFats, targetCarbs) {
-    const diet = [];
-    let currentCalories = 0;
-    let currentProteins = 0;
-    let currentFats = 0;
-    let currentCarbs = 0;
-    
-    // Сортируем продукты по приоритету (более сбалансированные)
-    const sortedProducts = [...products].sort((a, b) => {
-        const balanceA = Math.abs(a.proteins - 20) + Math.abs(a.fats - 30) + Math.abs(a.carbs - 50);
-        const balanceB = Math.abs(b.proteins - 20) + Math.abs(b.fats - 30) + Math.abs(b.carbs - 50);
-        return balanceA - balanceB;
-    });
-    
-    // Добавляем продукты пока не достигнем целевых значений
-    for (const product of sortedProducts) {
-        if (currentCalories >= targetCalories * 0.95) break;
-        
-        // Рассчитываем количество продукта (в граммах)
-        const remainingCalories = targetCalories - currentCalories;
-        const productCaloriesPerGram = product.calories / 100;
-        let amount = Math.min(remainingCalories / productCaloriesPerGram, 300); // Максимум 300г за раз
-        
-        if (amount > 10) { // Минимум 10г
-            const productCalories = (amount / 100) * product.calories;
-            const productProteins = (amount / 100) * product.proteins;
-            const productFats = (amount / 100) * product.fats;
-            const productCarbs = (amount / 100) * product.carbs;
-            
-            diet.push({
-                name: product.name,
-                amount: Math.round(amount * 10) / 10,
-                calories: Math.round(productCalories * 10) / 10,
-                proteins: Math.round(productProteins * 10) / 10,
-                fats: Math.round(productFats * 10) / 10,
-                carbs: Math.round(productCarbs * 10) / 10,
-                caloriesPer100g: product.calories
-            });
-            
-            currentCalories += productCalories;
-            currentProteins += productProteins;
-            currentFats += productFats;
-            currentCarbs += productCarbs;
-        }
-    }
-    
-    return diet;
-}
-
-// Отображение результатов
-function displayResults(calories, proteins, fats, carbs, diet) {
-    document.getElementById('totalCalories').textContent = calories;
-    document.getElementById('totalProteins').textContent = proteins;
-    document.getElementById('totalFats').textContent = fats;
-    document.getElementById('totalCarbs').textContent = carbs;
-    
-    const dietTable = document.getElementById('dietTable');
-    
-    if (diet.length === 0) {
-        dietTable.innerHTML = '<p class="empty-state">Не удалось сформировать рацион. Добавьте больше продуктов в базу.</p>';
-        return;
-    }
-    
-    const totalDietCalories = diet.reduce((sum, item) => sum + item.calories, 0);
-    const totalDietProteins = diet.reduce((sum, item) => sum + item.proteins, 0);
-    const totalDietFats = diet.reduce((sum, item) => sum + item.fats, 0);
-    const totalDietCarbs = diet.reduce((sum, item) => sum + item.carbs, 0);
-    
-    // Рассчитываем разведение для каждого продукта
-    const dietWithDilution = diet.map(item => {
-        const dilution = calculateDilution(item.amount, item.caloriesPer100g);
-        return { ...item, dilution };
-    });
-    
-    // Суммируем разведение для всех продуктов
-    const totalNormal = dietWithDilution.reduce((sum, item) => ({
-        scoops: sum.scoops + item.dilution.scoops,
-        water: sum.water + item.dilution.normal.water,
-        volume: sum.volume + item.dilution.normal.volume,
-        calories: sum.calories + item.dilution.normal.calories
-    }), { scoops: 0, water: 0, volume: 0, calories: 0 });
-    
-    const totalHyper = dietWithDilution.reduce((sum, item) => ({
-        scoops: sum.scoops + item.dilution.scoops,
-        water: sum.water + item.dilution.hyper.water,
-        volume: sum.volume + item.dilution.hyper.volume,
-        calories: sum.calories + item.dilution.hyper.calories
-    }), { scoops: 0, water: 0, volume: 0, calories: 0 });
-    
-    dietTable.innerHTML = `
-        <table>
-            <thead>
-                <tr>
-                    <th>Продукт</th>
-                    <th>Количество (г)</th>
-                    <th>Мерные ложки</th>
-                    <th>Калории</th>
-                    <th>Белки (г)</th>
-                    <th>Жиры (г)</th>
-                    <th>Углеводы (г)</th>
-                </tr>
-            </thead>
-            <tbody>
-                ${dietWithDilution.map(item => `
-                    <tr>
-                        <td>${escapeHtml(item.name)}</td>
-                        <td>${item.amount}</td>
-                        <td>${item.dilution.scoops.toFixed(1)}</td>
-                        <td>${item.calories.toFixed(1)}</td>
-                        <td>${item.proteins.toFixed(1)}</td>
-                        <td>${item.fats.toFixed(1)}</td>
-                        <td>${item.carbs.toFixed(1)}</td>
-                    </tr>
-                `).join('')}
-                <tr class="total-row">
-                    <td><strong>Итого</strong></td>
-                    <td><strong>${diet.reduce((sum, item) => sum + item.amount, 0).toFixed(1)}</strong></td>
-                    <td><strong>${totalNormal.scoops.toFixed(1)}</strong></td>
-                    <td><strong>${totalDietCalories.toFixed(1)}</strong></td>
-                    <td><strong>${totalDietProteins.toFixed(1)}</strong></td>
-                    <td><strong>${totalDietFats.toFixed(1)}</strong></td>
-                    <td><strong>${totalDietCarbs.toFixed(1)}</strong></td>
-                </tr>
-            </tbody>
-        </table>
-        
-        <div class="dilution-section">
-            <h4>Разведение смеси</h4>
-            <div class="dilution-cards">
-                <div class="dilution-card">
-                    <h5>Обычное разведение</h5>
-                    <div class="dilution-info">
-                        <div class="dilution-item">
-                            <span class="dilution-label">Мерные ложки:</span>
-                            <span class="dilution-value">${totalNormal.scoops.toFixed(1)}</span>
-                        </div>
-                        <div class="dilution-item">
-                            <span class="dilution-label">Вода:</span>
-                            <span class="dilution-value">${Math.round(totalNormal.water)} мл</span>
-                        </div>
-                        <div class="dilution-item">
-                            <span class="dilution-label">Готовый объем:</span>
-                            <span class="dilution-value">${Math.round(totalNormal.volume)} мл</span>
-                        </div>
-                        <div class="dilution-item">
-                            <span class="dilution-label">Калорийность:</span>
-                            <span class="dilution-value">${totalNormal.calories.toFixed(1)} ккал</span>
-                        </div>
-                    </div>
-                </div>
-                <div class="dilution-card">
-                    <h5>Гиперкалорическое разведение</h5>
-                    <div class="dilution-info">
-                        <div class="dilution-item">
-                            <span class="dilution-label">Мерные ложки:</span>
-                            <span class="dilution-value">${totalHyper.scoops.toFixed(1)}</span>
-                        </div>
-                        <div class="dilution-item">
-                            <span class="dilution-label">Вода:</span>
-                            <span class="dilution-value">${Math.round(totalHyper.water)} мл</span>
-                        </div>
-                        <div class="dilution-item">
-                            <span class="dilution-label">Готовый объем:</span>
-                            <span class="dilution-value">${Math.round(totalHyper.volume)} мл</span>
-                        </div>
-                        <div class="dilution-item">
-                            <span class="dilution-label">Калорийность:</span>
-                            <span class="dilution-value">${totalHyper.calories.toFixed(1)} ккал</span>
-                        </div>
-                    </div>
-                </div>
-            </div>
-        </div>
-    `;
-    
-    // Сохраняем данные для экспорта
-    window.lastDietResult = { calories, proteins, fats, carbs, diet };
-}
-
-// Экспорт результата в Excel
-function exportResultToExcel() {
-    if (!window.lastDietResult) {
-        showError('Нет данных для экспорта');
-        return;
-    }
-    
-    const { calories, proteins, fats, carbs, diet } = window.lastDietResult;
-    
-    // Создаем данные для экспорта
-    const wsData = [
-        ['Расчет рациона медицинского питания'],
-        [],
-        ['Параметры расчета'],
-        ['Калорийность (ккал/день):', calories],
-        ['Белки (г/день):', proteins],
-        ['Жиры (г/день):', fats],
-        ['Углеводы (г/день):', carbs],
-        [],
-        ['Рекомендуемый рацион'],
-        ['Продукт', 'Количество (г)', 'Калории', 'Белки (г)', 'Жиры (г)', 'Углеводы (г)'],
-        ...diet.map(item => [
-            item.name,
-            item.amount,
-            item.calories.toFixed(1),
-            item.proteins.toFixed(1),
-            item.fats.toFixed(1),
-            item.carbs.toFixed(1)
-        ])
-    ];
-    
-    const ws = XLSX.utils.aoa_to_sheet(wsData);
-    const wb = XLSX.utils.book_new();
-    XLSX.utils.book_append_sheet(wb, ws, 'Рацион');
-    
-    XLSX.writeFile(wb, 'рацион_питания.xlsx');
-    showSuccess('Результат экспортирован в Excel');
-}
-
-// Утилиты
+// Вспомогательные функции
 function escapeHtml(text) {
     const div = document.createElement('div');
     div.textContent = text;
@@ -720,25 +27,776 @@ function showSuccess(message) {
     }, 3000);
 }
 
-// Инициализация начальных данных
+function roundToTwo(num) {
+    if (typeof num !== 'number' || isNaN(num)) {
+        return 0;
+    }
+    return Math.round(num * 100) / 100;
+}
+
+// --- Инициализация приложения ---
+document.addEventListener('DOMContentLoaded', async () => {
+    try {
+        await db.init();
+        await initializeInitialData();
+        await loadProductsToSelect();
+        initCalculator();
+        initRationListeners();
+        initProductsSearch();
+        initModal();
+        initFluidCalculator();
+    } catch (error) {
+        showError('Ошибка инициализации базы данных: ' + error.message);
+    }
+});
+
+async function loadProductsToSelect() {
+    const selectElement = document.getElementById('selectedProduct');
+    if (!selectElement) return;
+
+    try {
+        const products = await ProductsAPI.getAll();
+        if (products.length === 0) {
+            selectElement.innerHTML = '<option value="">Нет доступных продуктов. Добавьте продукты в базу.</option>';
+            return;
+        }
+        selectElement.innerHTML = '<option value="">-- Выберите смесь --</option>' +
+            products.map(p => `<option value="${p.id}">${escapeHtml(p.name)}</option>`).join('');
+    } catch (error) {
+        console.error('Ошибка загрузки продуктов:', error);
+        selectElement.innerHTML = '<option value="">Ошибка загрузки продуктов</option>';
+    }
+}
+
 async function initializeInitialData() {
     try {
         const existingProducts = await ProductsAPI.getAll();
-
         if (existingProducts.length === 0 && typeof initialProducts !== 'undefined') {
-            console.log('Загрузка начальных данных продуктов в Supabase...');
+            console.log('Загрузка начальных данных продуктов в базу...');
             const productsToInsert = initialProducts.map(p => ({
                 name: p.name,
-                calories: p.calories,
-                proteins: p.proteins,
-                fats: p.fats,
-                carbs: p.carbs,
-                description: p.description || ''
+                calories: p.calories || null,
+                proteins: p.proteins || null,
+                fats: p.fats || null,
+                carbs: p.carbs || null,
+                description: p.description || '',
+                applicationMethod: p.applicationMethod || '',
+                scoopWeight: p.scoopWeight || null,
+                packageAmount: p.packageAmount || null,
+                scoopsPerServing_ordinary: p.scoopsPerServing_ordinary || null,
+                waterPerServing_ordinary: p.waterPerServing_ordinary || null,
+                servingVolume_ordinary: p.servingVolume_ordinary || null,
+                scoopsPerServing_hyper: p.scoopsPerServing_hyper || null,
+                waterPerServing_hyper: p.waterPerServing_hyper || null,
+                servingVolume_hyper: p.servingVolume_hyper || null,
             }));
             await ProductsAPI.bulkInsert(productsToInsert);
             console.log(`Загружено ${initialProducts.length} продуктов`);
         }
     } catch (error) {
         console.error('Ошибка загрузки начальных данных:', error);
+        showError('Ошибка загрузки начальных данных: ' + error.message);
     }
 }
+
+// --- ФУНКЦИИ РАСЧЕТА ПАЦИЕНТА ---
+function calculateBMI(weight, height) {
+    if (weight > 0 && height > 0) {
+        const heightM = height / 100;
+        const bmi = weight / (heightM * heightM);
+        return bmi;
+    }
+    return null;
+}
+
+function calculateBMR(weight, height, age, gender) {
+    if (weight > 0 && height > 0 && age > 0) {
+        let bmr;
+        if (gender === 'male') {
+            bmr = 66.5 + (13.75 * weight) + (5.003 * height) - (6.75 * age);
+        } else {
+            bmr = 655.1 + (9.563 * weight) + (1.850 * height) - (4.676 * age);
+        }
+        return bmr;
+    }
+    return null;
+}
+
+function updatePatientMetrics() {
+    const weight = parseFloat(document.getElementById('patientWeight').value);
+    const height = parseFloat(document.getElementById('patientHeight').value);
+    const age = parseFloat(document.getElementById('patientAge').value);
+    const gender = document.getElementById('patientGender').value;
+    const activityFactorValue = parseFloat(document.getElementById('activityFactor').value) || 1.2;
+
+    const bmiResult = document.getElementById('bmiResult');
+    const bmiStatus = document.getElementById('bmiStatus');
+    const bmrResult = document.getElementById('bmrResult');
+    const dailyNeedResult = document.getElementById('dailyNeedResult');
+    const dailyNeedStatus = document.getElementById('dailyNeedStatus');
+    const activityFactorSelect = document.getElementById('activityFactor');
+    const activityFactorText = activityFactorSelect.options[activityFactorSelect.selectedIndex].text.split(' - ')[1] || 'Не задан';
+
+    const bmi = calculateBMI(weight, height);
+    const bmr = calculateBMR(weight, height, age, gender);
+    let dailyNeed = null;
+
+    if (bmi) {
+        let status = '';
+        if (bmi < 18.5) { status = 'Недостаток веса'; bmiStatus.style.color = '#e74c3c'; }
+        else if (bmi >= 18.5 && bmi < 24.9) { status = 'Нормальный вес'; bmiStatus.style.color = '#27ae60'; }
+        else if (bmi >= 25 && bmi < 29.9) { status = 'Избыточный вес'; bmiStatus.style.color = '#f39c12'; }
+        else { status = 'Ожирение'; bmiStatus.style.color = '#c0392b'; }
+        bmiResult.textContent = `${bmi.toFixed(1)} кг/м²`;
+        bmiStatus.textContent = status;
+    } else {
+        bmiResult.textContent = '0.0 кг/м²';
+        bmiStatus.textContent = 'Введите данные';
+        bmiStatus.style.color = '#333';
+    }
+
+    if (bmr) {
+        bmrResult.textContent = `${bmr.toFixed(0)} ккал/сутки`;
+        dailyNeed = bmr * activityFactorValue;
+        dailyNeedResult.textContent = `${dailyNeed.toFixed(0)} ккал/сутки`;
+        dailyNeedResult.style.color = '#2980b9';
+        dailyNeedStatus.textContent = activityFactorText;
+    } else {
+        bmrResult.textContent = '0 ккал/сутки';
+        dailyNeedResult.textContent = '0 ккал/сутки';
+        dailyNeedResult.style.color = '#333';
+        dailyNeedStatus.textContent = 'ОО * Фактор активности';
+    }
+
+    dailyNeedResult.dataset.dailyNeed = dailyNeed ? dailyNeed.toFixed(0) : '0';
+    calculateFluidVolume();
+
+    const selectedProductId = document.getElementById('selectedProduct').value;
+    if (dailyNeed > 0 && selectedProductId) {
+        calculateRation();
+    } else {
+        document.getElementById('rationResult').innerHTML = '';
+        document.getElementById('additionalFluidResult').innerHTML = ''; // Очистка раздела дополнительной жидкости
+    }
+}
+
+function initCalculator() {
+    const inputs = ['patientWeight', 'patientHeight', 'patientAge', 'patientGender', 'activityFactor'];
+    inputs.forEach(id => {
+        const element = document.getElementById(id);
+        if (element) {
+            element.addEventListener('input', updatePatientMetrics);
+        }
+    });
+    updatePatientMetrics();
+}
+
+function initRationListeners() {
+    const selectedProduct = document.getElementById('selectedProduct');
+    const concentrationType = document.getElementById('concentrationType');
+    const numMeals = document.getElementById('numMeals');
+
+    const autoCalculate = () => {
+        const selectedProductId = selectedProduct.value;
+        const dailyNeed = parseFloat(document.getElementById('dailyNeedResult').dataset.dailyNeed);
+        if (selectedProductId && dailyNeed > 0) {
+            calculateRation();
+        } else {
+            document.getElementById('rationResult').innerHTML = "";
+            document.getElementById('additionalFluidResult').innerHTML = ''; // Очистка
+        }
+    };
+
+    if (selectedProduct) selectedProduct.addEventListener('change', autoCalculate);
+    if (concentrationType) concentrationType.addEventListener('change', autoCalculate);
+    if (numMeals) numMeals.addEventListener('input', autoCalculate);
+}
+
+async function calculateRation() {
+    const selectedProductId = document.getElementById('selectedProduct').value;
+    const concentrationType = document.getElementById('concentrationType').value;
+    const dailyNeed = parseFloat(document.getElementById('dailyNeedResult').dataset.dailyNeed);
+    const numMeals = parseInt(document.getElementById('numMeals').value) || 4;
+    const rationResultDiv = document.getElementById('rationResult');
+    document.getElementById('additionalFluidResult').innerHTML = ''; // Очистка перед началом расчета
+
+    if (!dailyNeed || dailyNeed === 0 || numMeals <= 0) {
+        rationResultDiv.innerHTML = "<p class='error-message-inline'>Пожалуйста, заполните данные пациента и задайте количество приемов пищи.</p>";
+        return;
+    }
+
+    if (!selectedProductId || !concentrationType) {
+        rationResultDiv.innerHTML = "<p class='error-message-inline'>Пожалуйста, выберите смесь и тип разведения.</p>";
+        return;
+    }
+
+    try {
+        const product = await ProductsAPI.getById(selectedProductId);
+        if (!product) {
+            rationResultDiv.innerHTML = "<p class='error-message-inline'>Продукт не найден.</p>";
+            return;
+        }
+
+        if (!product.scoopWeight || product.scoopWeight <= 0) {
+            rationResultDiv.innerHTML = "<p class='error-message-inline'>Ошибка: не задан вес мерной ложки для выбранного продукта.</p>";
+            return;
+        }
+
+        // --- НОВАЯ ЛОГИКА: Расчет калорийности по БЖУ, если не задана явно ---
+        let calorieSource = 'заданная';
+
+        if (!product.calories || product.calories <= 0) {
+            const proteins = product.proteins || 0;
+            const fats = product.fats || 0;
+            const carbs = product.carbs || 0;
+
+            if (proteins > 0 || fats > 0 || carbs > 0) {
+                // Formula: Protein * 4 + Fat * 9 + Carb * 4
+                product.calories = (proteins * 4) + (fats * 9) + (carbs * 4);
+                calorieSource = 'расчетная (Б*4 + Ж*9 + У*4)';
+            }
+        }
+
+        if (!product.calories || product.calories <= 0) {
+            rationResultDiv.innerHTML = "<p class='error-message-inline'>Ошибка: Калорийность продукта не задана (ни напрямую, ни через БЖУ).</p>";
+            return;
+        }
+        // --- КОНЕЦ НОВОЙ ЛОГИКИ ---
+
+        let scoopsPerServing, waterPerServing, concentrationLabel, servingVolume;
+        let dilutionWarning = ''; // Переменная для предупреждения
+
+        // 1. Get Ordinary Parameters (needed for fallback)
+        const scoops_ord = product.scoopsPerServing_ordinary;
+        const water_ord = product.waterPerServing_ordinary;
+        const vol_ord = product.servingVolume_ordinary;
+
+        if (!scoops_ord || !water_ord) {
+            // Cannot calculate anything without ordinary parameters
+            rationResultDiv.innerHTML = `<p class='error-message-inline'>Невозможно рассчитать рацион: не заданы параметры Обычного (≈1.0 ккал/мл) разведения для ${product.name}, которые необходимы для любого расчета.</p>`;
+            document.getElementById('additionalFluidResult').innerHTML = '';
+            return;
+        }
+
+        if (concentrationType === 'ordinary') {
+            scoopsPerServing = scoops_ord;
+            waterPerServing = water_ord;
+            servingVolume = vol_ord;
+            concentrationLabel = 'Обычное (≈1.0 ккал/мл)';
+        } else if (concentrationType === 'hyper') {
+            concentrationLabel = 'Гиперкалорическое (≈1.5 ккал/мл)';
+
+            // Check if Hyper parameters are explicitly set
+            if (product.scoopsPerServing_hyper && product.waterPerServing_hyper) {
+                scoopsPerServing = product.scoopsPerServing_hyper;
+                waterPerServing = product.waterPerServing_hyper;
+                servingVolume = product.servingVolume_hyper;
+            } else {
+                // FALLBACK: Calculate Hyper from Ordinary (assuming 1.5x concentration)
+                scoopsPerServing = scoops_ord;
+                waterPerServing = water_ord / 1.5; // Уменьшаем воду на 1/1.5 для повышения концентрации
+                servingVolume = null; // Forces recalculation based on new water volume + powder density
+
+                dilutionWarning = `<p class='error-message-inline' style="color: #f39c12; font-size: 0.9em; margin-bottom: 20px; padding: 10px; border: 1px dashed #f39c12; border-radius: 5px;">
+                    <strong>⚠ Внимание:</strong> Параметры гиперкалорического разведения отсутствуют в базе. Использован расчетный вариант (${scoopsPerServing.toFixed(1)} ложек на ${waterPerServing.toFixed(0)} мл воды) для достижения концентрации ≈1.5 ккал/мл.
+                </p>`;
+            }
+        }
+
+        const powderPerServingGrams = scoopsPerServing * product.scoopWeight;
+
+        let actualServingVolume;
+        if (servingVolume && servingVolume > 0) {
+            actualServingVolume = servingVolume;
+        } else {
+            const volumePowderML = powderPerServingGrams / 0.7; // Примерная плотность порошка
+            actualServingVolume = waterPerServing + volumePowderML;
+        }
+
+        const caloriesPerServing = (powderPerServingGrams / 100) * product.calories;
+
+        const actualEnergyDensity = caloriesPerServing / actualServingVolume;
+        const rationVolume = dailyNeed / actualEnergyDensity;
+
+        const ratioPowderToVolume = powderPerServingGrams / actualServingVolume;
+        const ratioWaterToPowder = waterPerServing / powderPerServingGrams;
+
+        const totalPowderGrams = rationVolume * ratioPowderToVolume;
+        const totalWaterML = totalPowderGrams * ratioWaterToPowder;
+
+        const totalCalories = (totalPowderGrams / 100) * product.calories;
+        const totalProteins = (totalPowderGrams / 100) * product.proteins;
+        const totalFats = (totalPowderGrams / 100) * product.fats;
+        const totalCarbs = (totalPowderGrams / 100) * product.carbs;
+
+        const mealVolume = rationVolume / numMeals;
+        const mealPowderGrams = totalPowderGrams / numMeals;
+        const mealWaterML = totalWaterML / numMeals;
+        const mealScoops = mealPowderGrams / product.scoopWeight;
+
+        // --- Расчет порции с округлением ложек ---
+        const roundedMealScoops = Math.round(mealScoops);
+        const isRoundingApplied = Math.abs(mealScoops - roundedMealScoops) >= 0.05;
+
+        const roundedMealPowderGrams = roundedMealScoops * product.scoopWeight;
+        const roundedMealWaterML = roundedMealPowderGrams * ratioWaterToPowder;
+
+        let roundedMealTotalVolume;
+        if (servingVolume && servingVolume > 0) {
+            roundedMealTotalVolume = (roundedMealPowderGrams / powderPerServingGrams) * actualServingVolume;
+        } else {
+            const roundedVolumePowderML = roundedMealPowderGrams / 0.7;
+            roundedMealTotalVolume = roundedMealWaterML + roundedVolumePowderML;
+        }
+
+        const roundedTotalPowderGrams = roundedMealPowderGrams * numMeals;
+        const roundedTotalWaterML = roundedMealWaterML * numMeals;
+        const roundedTotalVolume = roundedMealTotalVolume * numMeals;
+        const roundedTotalCalories = (roundedTotalPowderGrams / 100) * product.calories;
+
+        // --- Расчет калорийного отклонения и БЖУ ---
+        const calorieDifference = roundedTotalCalories - dailyNeed;
+        const differenceText = calorieDifference >= 0
+            ? `+${Math.abs(calorieDifference).toFixed(0)} ккал`
+            : `-${Math.abs(calorieDifference).toFixed(0)} ккал`;
+        const differenceClass = (Math.abs(calorieDifference) / dailyNeed) < 0.05
+            ? 'success-message-inline'
+            : (calorieDifference >= 0 ? 'success-message-inline' : 'error-message-inline');
+
+        const finalTotalProteins = (roundedTotalPowderGrams / 100) * product.proteins;
+        const finalTotalFats = (roundedTotalPowderGrams / 100) * product.fats;
+        const finalTotalCarbs = (roundedTotalPowderGrams / 100) * product.carbs;
+
+        const getNutritionPercentages = (calories, proteins, fats, carbs) => {
+            const proteinKcal = proteins * 4;
+            const fatKcal = fats * 9;
+            const carbKcal = carbs * 4;
+            const baseKcal = calories > 0 ? calories : 1;
+            return {
+                protein: roundToTwo((proteinKcal / baseKcal) * 100),
+                fat: roundToTwo((fatKcal / baseKcal) * 100),
+                carb: roundToTwo((carbKcal / baseKcal) * 100)
+            };
+        };
+
+        const precisePcts = getNutritionPercentages(totalCalories, totalProteins, totalFats, totalCarbs);
+        const roundedPcts = getNutritionPercentages(roundedTotalCalories, finalTotalProteins, finalTotalFats, finalTotalCarbs);
+
+        // ВНИМАНИЕ: Здесь используются ПОРЦИОННЫЕ данные (mealScoops, mealPowderGrams и т.д.)
+        const generateSummaryHtml = (scoops, powderG, waterML, volumeML, isRounded = false) => `
+            <div class="results-section" style="border-top: none; padding-top: 0;">
+                <h4 style="margin-bottom: 5px;">${isRounded ? 'Вариант порции (с округлением ложек)' : 'Точный расчет порции'}</h4>
+                <p style="margin: 0 0 10px 0; font-size: 0.9em; color: #555;">(${numMeals} раз в сутки)</p>
+                <div class="result-row ration-summary-row">
+                    <div class="result-card ration-summary-card result-portion-powder">
+                        <h5>Количество ложек смеси</h5>
+                        <p class="metric-value">${scoops.toFixed(1)} ложек</p>
+                        <p class="metric-status">(${powderG.toFixed(1)} г)</p>
+                    </div>
+                    <div class="result-card ration-summary-card result-portion-volume">
+                        <h5>Вода (мл) + порошок</h5>
+                        <p class="metric-value small-metric-value">${volumeML.toFixed(0)} мл</p>
+                        <p class="metric-status">(${waterML.toFixed(0)} мл воды + ${powderG.toFixed(1)} г порошка)</p>
+                    </div>
+                </div>
+            </div>
+        `;
+
+        const preciseTableHtml = `
+            <h3 style="margin-top: 20px;">Рацион на сутки (Точный расчет)</h3>
+            <table class="results-table">
+                <thead><tr><th>Показатель</th><th>Всего</th><th>% от Калоража</th></tr></thead>
+                <tbody>
+                    <tr><td data-label="Суточная потребность (СП)" class="highlight">Суточная потребность (СП)</td><td data-label="Значение" class="highlight">${dailyNeed.toFixed(0)} ккал</td><td data-label="% от Калоража">-</td></tr>
+                    <tr><td data-label="Калории (Рацион)" class="highlight">Калории (Рацион)</td><td data-label="Значение" class="highlight">${totalCalories.toFixed(0)} ккал</td><td data-label="% от Калоража">-</td></tr>
+                    <tr><td data-label="Белки (г)">Белки (г)</td><td data-label="Значение">${totalProteins.toFixed(1)} г</td><td data-label="% от Калоража">${precisePcts.protein.toFixed(1)}%</td></tr>
+                    <tr><td data-label="Жиры (г)">Жиры (г)</td><td data-label="Значение">${totalFats.toFixed(1)} г</td><td data-label="% от Калоража">${precisePcts.fat.toFixed(1)}%</td></tr>
+                    <tr><td data-label="Углеводы (г)">Углеводы (г)</td><td data-label="Значение">${totalCarbs.toFixed(1)} г</td><td data-label="% от Калоража">${precisePcts.carb.toFixed(1)}%</td></tr>
+                    <tr><td colspan="3" style="background-color: #f0f0f0; text-align: center; font-weight: bold; padding: 5px;">Объем и компоненты</td></tr>
+                    <tr><td data-label="Количество приемов пищи">Количество приемов пищи</td><td data-label="Значение" colspan="2">${numMeals} раз</td></tr>
+                    <tr><td data-label="Объем готовой смеси">Объем готовой смеси</td><td data-label="Значение" colspan="2">${rationVolume.toFixed(0)} мл</td></tr>
+                    <tr><td data-label="Всего сухого продукта">Всего сухого продукта</td><td data-label="Значение" colspan="2">${totalPowderGrams.toFixed(1)} г</td></tr>
+                    <tr><td data-label="Всего воды">Всего воды</td><td data-label="Значение" colspan="2">${totalWaterML.toFixed(0)} мл</td></tr>
+                </tbody>
+            </table>
+        `;
+
+        const roundedTableHtml = `
+            <h3 style="margin-top: 30px; border-top: 1px solid #ddd; padding-top: 20px;">Рацион на сутки (с округлением ложек)</h3>
+            <p style="margin-top: 10px;"><strong>Цель:</strong> Округлить порцию до **${roundedMealScoops} ложек** для удобства. <br> <span class="${differenceClass}">Отклонение от СП (${dailyNeed.toFixed(0)} ккал): ${differenceText}</span></p>
+            ${generateSummaryHtml(roundedMealScoops, roundedMealPowderGrams, roundedMealWaterML, roundedMealTotalVolume, true)}
+            <table class="results-table">
+                <thead><tr><th>Показатель</th><th>Всего</th><th>% от Калоража</th></tr></thead>
+                <tbody>
+                    <tr><td data-label="Калории (Новая)" class="highlight">Калории (Новая)</td><td data-label="Значение" class="highlight">${roundedTotalCalories.toFixed(0)} ккал</td><td data-label="% от Калоража">-</td></tr>
+                    <tr><td data-label="Белки (г)">Белки (г)</td><td data-label="Значение">${finalTotalProteins.toFixed(1)} г</td><td data-label="% от Калоража">${roundedPcts.protein.toFixed(1)}%</td></tr>
+                    <tr><td data-label="Жиры (г)">Жиры (г)</td><td data-label="Значение">${finalTotalFats.toFixed(1)} г</td><td data-label="% от Калоража">${roundedPcts.fat.toFixed(1)}%</td></tr>
+                    <tr><td data-label="Углеводы (г)">Углеводы (г)</td><td data-label="Значение">${finalTotalCarbs.toFixed(1)} г</td><td data-label="% от Калоража">${roundedPcts.carb.toFixed(1)}%</td></tr>
+                    <tr><td colspan="3" style="background-color: #f0f0f0; text-align: center; font-weight: bold; padding: 5px;">Объем и компоненты</td></tr>
+                    <tr><td data-label="Объем готовой смеси">Объем готовой смеси</td><td data-label="Значение" colspan="2">${roundedTotalVolume.toFixed(0)} мл</td></tr>
+                    <tr><td data-label="Всего сухого продукта">Всего сухого продукта</td><td data-label="Значение" colspan="2">${roundedTotalPowderGrams.toFixed(1)} г</td></tr>
+                    <tr><td data-label="Всего воды">Всего воды</td><td data-label="Значение" colspan="2">${roundedTotalWaterML.toFixed(0)} мл</td></tr>
+                </tbody>
+            </table>
+        `;
+
+        const resultHtml = `
+            ${dilutionWarning}
+            <h3>✅ Результаты расчета</h3>
+            <p><strong>Смесь:</strong> ${escapeHtml(product.name)}</p>
+            <p><strong>Калорийность 100г сухого:</strong> ${product.calories.toFixed(0)} ккал (${calorieSource})</p>
+            <p><strong>Тип разведения:</strong> ${concentrationLabel} &nbsp;&nbsp; | &nbsp;&nbsp; <strong>Энерг. плотность:</strong> ${actualEnergyDensity.toFixed(2)} ккал/мл</p>
+            <hr>
+            ${generateSummaryHtml(mealScoops, mealPowderGrams, mealWaterML, mealVolume, false)}
+            ${preciseTableHtml}
+            ${isRoundingApplied ? roundedTableHtml : ''}
+        `;
+
+        if (!isRoundingApplied) {
+            rationResultDiv.innerHTML = resultHtml.replace('Рацион на сутки (Точный расчет)', 'Рацион на сутки');
+        } else {
+            rationResultDiv.innerHTML = resultHtml;
+        }
+
+        // --- Расчет и отображение дополнительной жидкости ---
+        const patientWeight = parseFloat(document.getElementById('patientWeight').value);
+        const fluidMaintenanceNeed = calculateMaintenanceFluid(patientWeight);
+
+        if (isRoundingApplied) {
+            displayAdditionalFluid(fluidMaintenanceNeed, roundedTotalVolume, roundedTotalWaterML, true);
+        } else {
+            displayAdditionalFluid(fluidMaintenanceNeed, rationVolume, totalWaterML, false);
+        }
+
+    } catch (error) {
+        showError('Ошибка при расчете рациона: ' + error.message);
+        rationResultDiv.innerHTML = `<p class='error-message-inline'>Произошла внутренняя ошибка расчета.</p>`;
+        document.getElementById('additionalFluidResult').innerHTML = '';
+    }
+}
+
+// --- НОВАЯ ФУНКЦИЯ ДЛЯ ОТОБРАЖЕНИЯ ДОПОЛНИТЕЛЬНОЙ ЖИДКОСТИ ---
+function displayAdditionalFluid(fluidMaintenanceNeed, totalVolume, totalWaterInMix, isRounded) {
+    const additionalFluidResultDiv = document.getElementById('additionalFluidResult');
+
+    if (!additionalFluidResultDiv || fluidMaintenanceNeed === 0) {
+        if (additionalFluidResultDiv) additionalFluidResultDiv.innerHTML = '';
+        return;
+    }
+
+    let additionalWaterNeeded = 0;
+    let additionalWaterText = 'Не требуется';
+    let additionalWaterStatus = 'success';
+    let waterInMix = totalWaterInMix;
+
+    // Расчет дополнительной жидкости (ЖВО)
+    if (fluidMaintenanceNeed > 0) {
+        additionalWaterNeeded = fluidMaintenanceNeed - waterInMix;
+
+        if (additionalWaterNeeded < 0) {
+            additionalWaterText = `Избыток: ${Math.abs(additionalWaterNeeded).toFixed(0)} мл (ЖВО может быть выше)`;
+            additionalWaterStatus = 'warning';
+            additionalWaterNeeded = 0; // Не показывать отрицательный объем для добавления
+        } else if (additionalWaterNeeded > 0) {
+            additionalWaterText = `Требуется добавить`;
+            additionalWaterStatus = 'primary';
+        }
+    } else {
+        additionalWaterText = 'Нет данных о весе';
+        additionalWaterStatus = 'default';
+        additionalWaterNeeded = 0;
+    }
+
+    const waterNeededDisplay = additionalWaterNeeded.toFixed(0);
+
+    const waterHtml = `
+        <div class="results-section">
+            <h4 style="margin-bottom: 5px;">💧 Дополнительная жидкость, необходимая на сутки</h4>
+            <div class="result-row ration-summary-row">
+                <div class="result-card ration-summary-card result-portion-powder" style="border-left-color: #3498db; min-width: 30%;">
+                    <h5>ЖВО (Жел. Водный Объем)</h5>
+                    <p class="metric-value small-metric-value">${fluidMaintenanceNeed.toFixed(0)} мл</p>
+                    <p class="metric-status">Расчет по Холлидею-Сегару</p>
+                </div>
+                <div class="result-card ration-summary-card result-portion-volume" style="border-left-color: #f39c12; min-width: 30%;">
+                    <h5>Вода в готовой смеси (ЖВС)</h5>
+                    <p class="metric-value small-metric-value">${totalWaterInMix.toFixed(0)} мл</p>
+                    <p class="metric-status">Используется ${isRounded ? 'округленный' : 'точный'} расчет</p>
+                </div>
+                <div class="result-card ration-summary-card result-portion-volume" style="border-left-color: ${additionalWaterStatus === 'primary' ? '#2ecc71' : (additionalWaterStatus === 'warning' ? '#e74c3c' : '#ccc')}; min-width: 30%;">
+                    <h5>Добавить воды (ЖВО - ЖВС)</h5>
+                    <p class="metric-value small-metric-value">${waterNeededDisplay} мл</p>
+                    <p class="metric-status">${additionalWaterText}</p>
+                </div>
+            </div>
+            <p style="text-align: center; margin-top: -10px; font-size: 0.85em; color: #7f8c8d;">
+                <em>Данные основаны на ${isRounded ? 'округленном' : 'точном'} расчете рациона.</em>
+            </p>
+        </div>
+    `;
+
+    additionalFluidResultDiv.innerHTML = waterHtml;
+}
+
+
+// --- ФУНКЦИИ РАСЧЕТА ЖВО (Желаемого Водного Объема) ДЛЯ ДЕТЕЙ ---
+function calculateMaintenanceFluid(weight) {
+    if (!weight || weight <= 0) return 0;
+
+    let fluid = 0;
+    if (weight <= 10) {
+        fluid = weight * 100;
+    } else if (weight <= 20) {
+        fluid = 1000 + (weight - 10) * 50;
+    } else {
+        fluid = 1000 + 500 + (weight - 20) * 20;
+    }
+    return Math.round(fluid);
+}
+
+function calculateFluidVolume() {
+    const weight = parseFloat(document.getElementById('patientWeight').value);
+    const totalFluidNeedEl = document.getElementById('totalFluidNeed');
+    const fluidStatusEl = document.getElementById('fluidStatus');
+    const fluidBreakdownEl = document.getElementById('fluidBreakdown');
+
+    if (!weight || weight <= 0) {
+        totalFluidNeedEl.textContent = '0 мл/сутки';
+        fluidStatusEl.textContent = 'Результат появится после ввода веса';
+        fluidBreakdownEl.innerHTML = '';
+        return;
+    }
+
+    if (weight > 54) {
+        totalFluidNeedEl.textContent = '— мл/сутки';
+        fluidStatusEl.textContent = 'Расчет применим для детей до 54 кг';
+        fluidBreakdownEl.innerHTML = '<p style="color: #f39c12;">⚠ Для пациентов с весом > 54 кг используйте другие формулы.</p>';
+        return;
+    }
+
+    const maintenanceFluid = calculateMaintenanceFluid(weight);
+
+    totalFluidNeedEl.textContent = `${maintenanceFluid} мл/сутки`;
+    totalFluidNeedEl.style.color = '#2980b9';
+    fluidStatusEl.textContent = 'Формула Холлидея-Сегара';
+
+    let breakdown = '<strong>Расчет:</strong> ';
+    if (weight <= 10) {
+        breakdown += `${weight.toFixed(1)} кг × 100 мл/кг = ${maintenanceFluid} мл`;
+    } else if (weight <= 20) {
+        const extra = weight - 10;
+        breakdown += `1000 мл (10 кг) + ${extra.toFixed(1)} кг × 50 мл/кг = ${maintenanceFluid} мл`;
+    } else {
+        const extra = weight - 20;
+        breakdown += `1500 мл (20 кг) + ${extra.toFixed(1)} кг × 20 мл/кг = ${maintenanceFluid} мл`;
+    }
+
+    fluidBreakdownEl.innerHTML = `<p>${breakdown}</p>
+        <p style="margin-top: 8px; color: #7f8c8d; font-size: 0.85em;">
+            <em>⚠ Это базовый расчет жидкости поддержания (ЖП). При необходимости учитывайте дополнительные потери (ЖВО, ЖТПП).</em>
+        </p>`;
+}
+
+function initFluidCalculator() {
+    const weightInput = document.getElementById('patientWeight');
+    if (weightInput) {
+        calculateFluidVolume();
+    }
+}
+
+// --- ФУНКЦИИ УПРАВЛЕНИЯ ПРОДУКТАМИ И МОДАЛЬНОГО ОКНА ---
+
+function initProductsSearch() {
+    const searchBtn = document.getElementById('searchMedpitanieBtn');
+    if (searchBtn) {
+        searchBtn.addEventListener('click', () => {
+            openModal();
+        });
+    }
+}
+
+function initModal() {
+    const modal = document.getElementById('productModal');
+    const closeBtn = document.getElementById('closeModalBtn');
+    const cancelBtn = document.getElementById('cancelBtn');
+    const productForm = document.getElementById('productForm');
+    const searchMedpitanieBtn = document.getElementById('searchMedpitanieBtn');
+
+    // Открытие модального окна по кнопке "Управление продуктами"
+    if (searchMedpitanieBtn) {
+        searchMedpitanieBtn.addEventListener('click', () => {
+            openModal();
+        });
+    }
+
+    // Закрытие модального окна
+    if (closeBtn) {
+        closeBtn.addEventListener('click', closeModal);
+    }
+
+    if (cancelBtn) {
+        cancelBtn.addEventListener('click', (e) => {
+            e.preventDefault();
+            closeModal();
+        });
+    }
+
+    // Закрытие при клике вне модального окна
+    window.addEventListener('click', (e) => {
+        if (e.target === modal) {
+            closeModal();
+        }
+    });
+
+    // Обработка отправки формы
+    if (productForm) {
+        productForm.addEventListener('submit', async (e) => {
+            e.preventDefault();
+            await saveProduct();
+        });
+    }
+
+    // Загрузка списка продуктов при открытии
+    loadProductsTable();
+}
+
+async function openModal(productId = null) {
+    const modal = document.getElementById('productModal');
+    const modalTitle = document.getElementById('modalTitle');
+    const productForm = document.getElementById('productForm');
+
+    if (productId) {
+        modalTitle.textContent = 'Редактировать продукт';
+        await loadProductForEdit(productId);
+    } else {
+        modalTitle.textContent = 'Добавить новый продукт';
+        productForm.reset();
+        document.getElementById('productId').value = '';
+    }
+
+    await loadProductsTable();
+    modal.style.display = 'flex';
+}
+
+function closeModal() {
+    const modal = document.getElementById('productModal');
+    const productForm = document.getElementById('productForm');
+    modal.style.display = 'none';
+    productForm.reset();
+    document.getElementById('productId').value = '';
+}
+
+async function loadProductForEdit(productId) {
+    try {
+        const product = await ProductsAPI.getById(productId);
+        if (!product) {
+            showError('Продукт не найден');
+            return;
+        }
+
+        document.getElementById('productId').value = product.id;
+        document.getElementById('productName').value = product.name || '';
+        document.getElementById('productCalories').value = product.calories || '';
+        document.getElementById('productProteins').value = product.proteins || '';
+        document.getElementById('productFats').value = product.fats || '';
+        document.getElementById('productCarbs').value = product.carbs || '';
+        document.getElementById('productScoopWeight').value = product.scoopWeight || '';
+        document.getElementById('productPackageAmount').value = product.packageAmount || '';
+        document.getElementById('productScoopsOrdinary').value = product.scoopsPerServing_ordinary || '';
+        document.getElementById('productWaterOrdinary').value = product.waterPerServing_ordinary || '';
+        document.getElementById('servingVolume_ordinary').value = product.servingVolume_ordinary || '';
+        document.getElementById('productScoopsHyper').value = product.scoopsPerServing_hyper || '';
+        document.getElementById('productWaterHyper').value = product.waterPerServing_hyper || '';
+        document.getElementById('servingVolume_hyper').value = product.servingVolume_hyper || '';
+        document.getElementById('productApplicationMethod').value = product.applicationMethod || '';
+        document.getElementById('productDescription').value = product.description || '';
+    } catch (error) {
+        showError('Ошибка загрузки данных продукта: ' + error.message);
+    }
+}
+
+async function saveProduct() {
+    const productId = document.getElementById('productId').value;
+
+    const productData = {
+        name: document.getElementById('productName').value,
+        calories: parseFloat(document.getElementById('productCalories').value) || null,
+        proteins: parseFloat(document.getElementById('productProteins').value) || null,
+        fats: parseFloat(document.getElementById('productFats').value) || null,
+        carbs: parseFloat(document.getElementById('productCarbs').value) || null,
+        scoopWeight: parseFloat(document.getElementById('productScoopWeight').value) || null,
+        packageAmount: parseFloat(document.getElementById('productPackageAmount').value) || null,
+        scoopsPerServing_ordinary: parseFloat(document.getElementById('productScoopsOrdinary').value) || null,
+        waterPerServing_ordinary: parseFloat(document.getElementById('productWaterOrdinary').value) || null,
+        servingVolume_ordinary: parseFloat(document.getElementById('servingVolume_ordinary').value) || null,
+        scoopsPerServing_hyper: parseFloat(document.getElementById('productScoopsHyper').value) || null,
+        waterPerServing_hyper: parseFloat(document.getElementById('productWaterHyper').value) || null,
+        servingVolume_hyper: parseFloat(document.getElementById('servingVolume_hyper').value) || null,
+        applicationMethod: document.getElementById('productApplicationMethod').value || '',
+        description: document.getElementById('productDescription').value || ''
+    };
+
+    try {
+        if (productId) {
+            await ProductsAPI.updateProduct(productId, productData);
+            showSuccess('Продукт успешно обновлен');
+        } else {
+            await ProductsAPI.addProduct(productData);
+            showSuccess('Продукт успешно добавлен');
+        }
+
+        await loadProductsTable();
+        await loadProductsToSelect();
+        closeModal();
+    } catch (error) {
+        showError('Ошибка сохранения продукта: ' + error.message);
+    }
+}
+
+async function loadProductsTable() {
+    const tbody = document.getElementById('productsTableBody');
+    if (!tbody) return;
+
+    try {
+        const products = await ProductsAPI.getAll();
+
+        if (products.length === 0) {
+            tbody.innerHTML = '<tr><td colspan="3" class="empty-state">Нет продуктов в базе данных</td></tr>';
+            return;
+        }
+
+        tbody.innerHTML = products.map(product => `
+            <tr>
+                <td>${escapeHtml(product.name)}</td>
+                <td>${product.calories || '—'}</td>
+                <td>
+                    <button class="btn-small btn-edit" onclick="editProduct(${product.id})">Редактировать</button>
+                    <button class="btn-small btn-delete" onclick="deleteProduct(${product.id})">Удалить</button>
+                </td>
+            </tr>
+        `).join('');
+    } catch (error) {
+        showError('Ошибка загрузки списка продуктов: ' + error.message);
+        tbody.innerHTML = '<tr><td colspan="3" class="empty-state">Ошибка загрузки данных</td></tr>';
+    }
+}
+
+// Глобальные функции для кнопок
+window.editProduct = async function (productId) {
+    await openModal(productId);
+};
+
+window.deleteProduct = async function (productId) {
+    if (!confirm('Вы уверены, что хотите удалить этот продукт?')) {
+        return;
+    }
+
+    try {
+        await ProductsAPI.deleteProduct(productId);
+        showSuccess('Продукт успешно удален');
+        await loadProductsTable();
+        await loadProductsToSelect();
+    } catch (error) {
+        showError('Ошибка удаления продукта: ' + error.message);
+    }
+};
