@@ -35,6 +35,7 @@ function roundToTwo(num) {
 }
 
 // --- Инициализация Supabase ---
+// ВСТАВЬТЕ СЮДА ВАШИ РЕАЛЬНЫЕ КЛЮЧИ!
 const SUPABASE_URL = 'https://kyxyuhttgyfihakaajsn.supabase.co';
 const SUPABASE_ANON_KEY = 'sb_publishable_x0GfxNq6Aq2UReH-IGO2iQ_x5zJLX4M';
 
@@ -58,10 +59,8 @@ function updateAuthUI(user) {
     const logoutBtn = document.getElementById('logoutBtn');
     const saveProductBtn = document.getElementById('saveProductBtn');
 
-    // Элементы, которые нужно показать/скрыть
     const authEmail = document.getElementById('authEmail');
     const authPassword = document.getElementById('authPassword');
-    const signUpBtn = document.getElementById('signUpBtn');
 
     if (user) {
         // Пользователь вошел в систему
@@ -445,7 +444,6 @@ function performRationCalculation(totalDailyNeedKcal, product, concentrationType
 
 /**
  * Формирует HTML-таблицу для результатов расчета.
- * Заголовки и подзаголовки вынесены в calculateRation() для выравнивания.
  * @param {object} result - Результаты расчета от performRationCalculation.
  * @returns {string} HTML-код таблицы.
  */
@@ -592,22 +590,14 @@ function calculateRation() {
 
     const concentrationName = concentrationType === 'ordinary' ? 'Обычное' : 'Гиперкалорическое';
 
-    // Формируем блок с общей информацией о разведении
+    // Формируем блок с общей информацией о разведении (КОМПАКТНЫЙ ВЫВОД)
     const dilutionInfo = `
         <div class="results-section">
             <h4>📄 Расчет рациона: ${escapeHtml(selectedProduct.name)}</h4>
-            <div class="result-row ration-summary-row">
-                <div class="result-card ration-summary-card">
-                    <h5>Тип разведения</h5>
-                    <p class="small-metric-value">${concentrationName}</p>
-                    <p class="metric-status">${exactResult.kcalPerMl.toFixed(3)} ккал/мл</p>
-                </div>
-                <div class="result-card ration-summary-card">
-                    <h5>Базовая порция (${concentrationName})</h5>
-                    <p class="small-metric-value">${exactResult.scoopsPerServing} ложек</p>
-                    <p class="metric-status">на ${exactResult.waterPerServing} мл воды</p>
-                </div>
-            </div>
+            <p class="ration-summary-compact">
+                <strong>Тип разведения:</strong> ${concentrationName} (${exactResult.kcalPerMl.toFixed(3)} ккал/мл). 
+                <strong>Базовая порция:</strong> ${exactResult.scoopsPerServing} ложек на ${exactResult.waterPerServing} мл воды.
+            </p>
         </div>
     `;
 
@@ -648,7 +638,6 @@ function calculateRation() {
         '</div>';
 }
 
-// ... ОСТАЛЬНЫЕ ФУНКЦИИ
 
 async function loadProductsToSelect() {
     const selectElement = document.getElementById('selectedProduct');
@@ -679,9 +668,13 @@ async function loadProductsToSelect() {
 
 function initCalculator() {
     // 1. Установка пустых значений для данных пациента
-    document.getElementById('patientWeight').value = '';
-    document.getElementById('patientHeight').value = '';
-    document.getElementById('patientAge').value = '';
+    const weightInput = document.getElementById('patientWeight');
+    const heightInput = document.getElementById('patientHeight');
+    const ageInput = document.getElementById('patientAge');
+
+    if (weightInput) weightInput.value = '';
+    if (heightInput) heightInput.value = '';
+    if (ageInput) ageInput.value = '';
 
     // 2. Установка Фактора активности по умолчанию (1.2 - Постельный режим)
     const activityFactorElement = document.getElementById('activityFactor');
@@ -893,6 +886,12 @@ window.deleteProduct = async function (productId) {
 // --- Инициализация приложения ---
 document.addEventListener('DOMContentLoaded', async () => {
     try {
+        // Подключаем Supabase, чтобы проверить статус
+        if (!window.supabase) {
+            showError("Критическая ошибка: Библиотека Supabase не загружена. Проверьте подключение в index.html");
+            return;
+        }
+
         const { data: { user } } = await supabase.auth.getUser();
         updateAuthUI(user);
 
