@@ -28,11 +28,37 @@ function showSuccess(message) {
 }
 
 function roundToTwo(num) {
-    if (typeof num !== 'number' || isNaN(num)) {
+    if (typeof num !== 'number' || isNaN(num) || !isFinite(num)) {
         return 0;
     }
     return Math.round(num * 100) / 100;
 }
+
+/**
+ * БЕЗОПАСНАЯ ФУНКЦИЯ: Округляет число до заданного количества знаков после запятой.
+ * Возвращает '0.00' (или другое заданное значение) в случае undefined, null, NaN или Infinity.
+ * @param {number} value - Число для округления.
+ * @param {number} digits - Количество знаков после запятой (по умолчанию 1).
+ * @returns {string} Округленное число в виде строки.
+ */
+function safeToFixed(value, digits = 1) {
+    // 1. Проверяем, определено ли значение. Если нет, или оно не является числом, обрабатываем как 0.
+    if (value === null || value === undefined) {
+        return (0).toFixed(digits);
+    }
+
+    // 2. Преобразуем в число (на случай, если пришла строка)
+    const num = parseFloat(value);
+
+    // 3. Проверяем на NaN или Infinity
+    if (typeof num !== 'number' || isNaN(num) || !isFinite(num)) {
+        return (0).toFixed(digits);
+    }
+
+    // 4. Выполняем безопасное округление
+    return num.toFixed(digits);
+}
+
 
 // --- Инициализация Supabase ---
 const SUPABASE_URL = 'https://kyxyuhttgyfihakaajsn.supabase.co';
@@ -57,14 +83,10 @@ function updateAuthUI(user) {
     const authForm = document.getElementById('authForm');
     const logoutBtn = document.getElementById('logoutBtn');
     const saveProductBtn = document.getElementById('saveProductBtn');
-    const exportBtn = document.getElementById('exportBtn');
 
-
-    // Элементы, которые нужно показать/скрыть
     const authEmail = document.getElementById('authEmail');
     const authPassword = document.getElementById('authPassword');
-    const signInBtn = document.getElementById('signInBtn');
-    const signUpBtn = document.getElementById('signUpBtn');
+    const exportBtn = document.getElementById('exportBtn'); // Объявляем, если используется
 
     if (user) {
         // Пользователь вошел в систему
@@ -75,7 +97,8 @@ function updateAuthUI(user) {
         authForm.style.display = 'none';
         logoutBtn.style.display = 'inline-block';
 
-        saveProductBtn.disabled = false; // Разрешаем сохранение/добавление
+        if (saveProductBtn) saveProductBtn.disabled = false; // Разрешаем сохранение/добавление
+        // if (exportBtn) exportBtn.style.display = 'inline-block'; // Если вы решили сделать экспорт доступным только авторизованным
     } else {
         // Пользователь не вошел в систему (анонимный)
         authStatus.textContent = `Статус: Анонимный`;
@@ -85,7 +108,8 @@ function updateAuthUI(user) {
         authForm.style.display = 'flex';
         logoutBtn.style.display = 'none';
 
-        saveProductBtn.disabled = true; // Запрещаем сохранение/добавление
+        if (saveProductBtn) saveProductBtn.disabled = true; // Запрещаем сохранение/добавление
+        // if (exportBtn) exportBtn.style.display = 'none'; // Если вы решили сделать экспорт доступным только авторизованным
 
         // Очищаем поля при выходе
         if (authEmail) authEmail.value = '';
@@ -109,7 +133,6 @@ async function signUpUser(email, password) {
 
         showSuccess('Регистрация успешна! Проверьте почту для подтверждения.');
         // Если настроено подтверждение почты, пользователь не войдет сразу
-        // Если нет, вызываем проверку статуса
         const { data: { user } } = await supabase.auth.getUser();
         updateAuthUI(user);
     } catch (error) {
@@ -327,7 +350,8 @@ function updatePatientMetrics() {
             status = 'Ожирение';
             bmiStatus.style.color = '#c0392b';
         }
-        bmiResult.textContent = `${bmi.toFixed(1)} кг/м²`;
+        // Используем safeToFixed для предотвращения ошибок
+        bmiResult.textContent = `${safeToFixed(bmi, 1)} кг/м²`;
         bmiStatus.textContent = status;
     } else {
         bmiResult.textContent = '0.0 кг/м²';
@@ -337,11 +361,12 @@ function updatePatientMetrics() {
 
     // Обновление ОО и Суточной потребности
     if (bmr) {
-        bmrResult.textContent = `${bmr.toFixed(0)} ккал/сутки`;
+        // Используем safeToFixed для предотвращения ошибок
+        bmrResult.textContent = `${safeToFixed(bmr, 0)} ккал/сутки`;
         dailyNeed = bmr * activityFactorValue;
-        dailyNeedResult.textContent = `${dailyNeed.toFixed(0)} ккал/сутки`;
+        dailyNeedResult.textContent = `${safeToFixed(dailyNeed, 0)} ккал/сутки`;
         dailyNeedResult.style.color = '#e67e22';
-        dailyNeedStatus.textContent = `ОО * ${activityFactorValue.toFixed(1)} (${activityFactorText})`;
+        dailyNeedStatus.textContent = `ОО * ${safeToFixed(activityFactorValue, 1)} (${activityFactorText})`;
     } else {
         bmrResult.textContent = '0 ккал/сутки';
         dailyNeedResult.textContent = '0 ккал/сутки';
@@ -350,19 +375,21 @@ function updatePatientMetrics() {
     }
 
     // Обновление ЖВО (используем Holliday-Segar)
-    fluidNeedResult.textContent = `${fluidNeed.toFixed(0)} мл/сутки`;
+    // Используем safeToFixed для предотвращения ошибок
+    fluidNeedResult.textContent = `${safeToFixed(fluidNeed, 0)} мл/сутки`;
     fluidNeedResult.style.color = '#9b59b6';
     fluidNeedStatus.textContent = `Формула: Holliday-Segar 4-2-1`; // Обновлено
-    fluidNeedResult.dataset.totalFluid = fluidNeed.toFixed(0); // Сохраняем ЖВО для дальнейшего расчета
+    fluidNeedResult.dataset.totalFluid = safeToFixed(fluidNeed, 0); // Сохраняем ЖВО для дальнейшего расчета
 
 
     // Обновление Целевого белка
-    proteinTargetResult.textContent = `${proteinTarget.toFixed(0)} г/сутки`;
+    // Используем safeToFixed для предотвращения ошибок
+    proteinTargetResult.textContent = `${safeToFixed(proteinTarget, 0)} г/сутки`;
     proteinTargetResult.style.color = '#c0392b';
-    proteinTargetStatus.textContent = `Вес * ${proteinNeedPerKg.toFixed(1)} г/кг`;
+    proteinTargetStatus.textContent = `Вес * ${safeToFixed(proteinNeedPerKg, 1)} г/кг`;
 
     // Сохраняем суточную потребность в атрибуте для использования в calculateRation
-    dailyNeedResult.dataset.dailyNeed = dailyNeed ? dailyNeed.toFixed(0) : '0';
+    dailyNeedResult.dataset.dailyNeed = dailyNeed ? safeToFixed(dailyNeed, 0) : '0';
 
     // Сбрасываем/обновляем расчет рациона
     calculateRation();
@@ -447,7 +474,8 @@ function runCalculation(product, dailyNeed, feedingsPerDay, concentrationType, s
             const powderVolumePerScoop = (servingVolumeOrdinary - waterOrdinary) / scoopsOrdinary;
             servingVolume = (scoopsPerServing * powderVolumePerScoop) + waterPerServing;
 
-            baseServingDescription = `${scoopsPerServing.toFixed(1)} ложек на ${waterPerServing} мл воды (1.5x фоллбэк)`;
+            // Используем safeToFixed для описания, чтобы избежать ошибок
+            baseServingDescription = `${safeToFixed(scoopsPerServing, 1)} ложек на ${waterPerServing} мл воды (1.5x фоллбэк)`;
 
             if (servingVolume === 0 || scoopsPerServing === 0) {
                 throw new Error('Ошибка расчета параметров гиперкалорического разведения (фоллбэк). Проверьте данные обычного разведения.');
@@ -462,7 +490,11 @@ function runCalculation(product, dailyNeed, feedingsPerDay, concentrationType, s
     // Концентрация (Ккал/мл)
     const concentration = kcalPerServing / servingVolume;
     if (concentration === 0 || isNaN(concentration) || !isFinite(concentration)) {
-        throw new Error('Ошибка расчета концентрации. Проверьте данные продукта (Ккал/100г, Вес ложки, Объем порции).');
+        // Принудительная ошибка, если концентрация неверна
+        if (dailyNeed > 0) {
+            throw new Error('Ошибка расчета концентрации. Проверьте данные продукта (Ккал/100г, Вес ложки, Объем порции).');
+        }
+        // Если dailyNeed = 0, мы можем позволить NaN, так как все будет 0
     }
 
     // 2. Расчет Точного рациона (exactResult)
@@ -606,6 +638,7 @@ function runCalculation(product, dailyNeed, feedingsPerDay, concentrationType, s
 
 /**
  * Генерирует HTML-таблицу с результатами расчета в новом формате.
+ * Использует safeToFixed для предотвращения ошибок undefined/NaN.
  * @param {object} result - Результат расчета (exactResult или roundedResult).
  * @returns {string} HTML-код таблицы.
  */
@@ -628,23 +661,23 @@ function buildRationTableHTML(result) {
                 </tr>
                 <tr>
                     <td>Готовый раствор (прибл.)</td>
-                    <td class="highlight">${result.volumePerMealMl.toFixed(0)} мл</td>
+                    <td class="highlight">${safeToFixed(result.volumePerMealMl, 0)} мл</td>
                 </tr>
                 <tr>
                     <td>Калорийность</td>
-                    <td>${result.kcalPerMeal.toFixed(0)} ккал</td>
+                    <td>${safeToFixed(result.kcalPerMeal, 0)} ккал</td>
                 </tr>
                 <tr>
                     <td>Белки</td>
-                    <td>${result.proteinPerMeal.toFixed(1)} г</td>
+                    <td>${safeToFixed(result.proteinPerMeal, 1)} г</td>
                 </tr>
                 <tr>
                     <td>Жиры</td>
-                    <td>${result.fatPerMeal.toFixed(1)} г</td>
+                    <td>${safeToFixed(result.fatPerMeal, 1)} г</td>
                 </tr>
                 <tr>
                     <td>Углеводы</td>
-                    <td>${result.carbsPerMeal.toFixed(1)} г</td>
+                    <td>${safeToFixed(result.carbsPerMeal, 1)} г</td>
                 </tr>
             </tbody>
 
@@ -656,34 +689,36 @@ function buildRationTableHTML(result) {
             <tbody>
                 <tr>
                     <td>Вес сухой смеси</td>
-                    <td class="highlight">${result.totalMixWeightGrams.toFixed(1)} г</td>
+                    <td class="highlight">${safeToFixed(result.totalMixWeightGrams, 1)} г</td>
                 </tr>
                 <tr>
                     <td>Общее количество ложек</td>
-                    <td>${result.requiredScoopsTotal.toFixed(2)} шт.</td>
+                    <td>${safeToFixed(result.requiredScoopsTotal, 2)} шт.</td>
                 </tr>
                 <tr>
                     <td>Общее количество воды</td>
-                    <td class="highlight">${result.requiredWaterMl.toFixed(0)} мл</td>
+                    <td class="highlight">${safeToFixed(result.requiredWaterMl, 0)} мл</td>
                 </tr>
                 <tr>
                     <td>Общий объем раствора (прибл.)</td>
-                    <td class="highlight">${result.requiredVolumeMl.toFixed(0)} мл (${result.dailyVolumeLitres.toFixed(2)} л)</td>
+                    <td class="highlight">${safeToFixed(result.requiredVolumeMl, 0)} мл (${safeToFixed(result.dailyVolumeLitres, 2)} л)</td>
                 </tr>
                 <tr>
                     <td>Калорийность</td>
-                    <td>${result.totalCalculatedKcal.toFixed(0)} ккал</td>
+                    <td>${safeToFixed(result.totalCalculatedKcal, 0)} ккал</td>
                 </tr>
                 <tr>
                     <td>Белки</td>
-                    <td>${result.totalProteinGrams.toFixed(1)} г</td>
+                    <td>${safeToFixed(result.totalProteinGrams, 1)} г</td>
                 </tr>
                 <tr>
                     <td>Жиры</td>
-                    <td>${result.totalFatGrams.toFixed(1)} г</td> </tr>
+                    <td>${safeToFixed(result.totalFatGrams, 1)} г</td>
+                </tr>
                 <tr>
                     <td>Углеводы</td>
-                    <td>${result.totalCarbsGrams.toFixed(1)} г</td> </tr>
+                    <td>${safeToFixed(result.totalCarbsGrams, 1)} г</td>
+                </tr>
             </tbody>
 
             <thead>
@@ -694,11 +729,11 @@ function buildRationTableHTML(result) {
             <tbody>
                 <tr>
                     <td>На сколько суток хватит банки смеси</td>
-                    <td class="highlight">${result.daysSupply > 0 ? result.daysSupply.toFixed(1) + ' дн.' : 'Н/Д (Вес упаковки не указан)'}</td>
+                    <td class="highlight">${result.daysSupply > 0 ? safeToFixed(result.daysSupply, 1) + ' дн.' : 'Н/Д (Вес упаковки не указан)'}</td>
                 </tr>
                 <tr>
                     <td>Сколько банок нужно на месяц (30 дн.)</td>
-                    <td class="highlight">${result.canSupplyPerMonth > 0 ? result.canSupplyPerMonth.toFixed(1) + ' шт.' : 'Н/Д (Вес упаковки не указан)'}</td>
+                    <td class="highlight">${result.canSupplyPerMonth > 0 ? safeToFixed(result.canSupplyPerMonth, 1) + ' шт.' : 'Н/Д (Вес упаковки не указан)'}</td>
                 </tr>
             </tbody>
         </table>
@@ -759,7 +794,7 @@ function calculateRation() {
                     <h4>📄 Расчет рациона: ${escapeHtml(selectedProduct.name)}</h4>
                     <p class="ration-summary-compact">
                         <strong>Тип разведения:</strong> ${concentrationName}.
-                        <strong>Концентрация:</strong> ${exactResult.kcalPerMl.toFixed(2)} ккал/мл.
+                        <strong>Концентрация:</strong> ${safeToFixed(exactResult.kcalPerMl, 2)} ккал/мл.
                         <strong>Базовая порция:</strong> ${exactResult.baseServingDescription}.
                         </p>
                 </div>
@@ -777,13 +812,13 @@ function calculateRation() {
 
             // Упрощенный расчет: содержит сообщение об изменении калоража
             const caloricChange = roundedResult.totalCalculatedKcal - dailyNeed;
-            const waterRoundingInfo = (roundedResult.requiredWaterMl % 10 !== 0) ? '' : `Вода округлена до ${roundedResult.requiredWaterMl.toFixed(0)} мл (кратное 10).`;
+            const waterRoundingInfo = (roundedResult.requiredWaterMl % 10 !== 0) ? '' : `Вода округлена до ${safeToFixed(roundedResult.requiredWaterMl, 0)} мл (кратное 10).`;
 
             const roundedStatus = `
                 <div class="status-block-wrapper">
-                    <p class="metric-status status-subtext">Расчет с округлением ложек на прием до ${roundedScoopsPerMeal} шт. ${waterRoundingInfo}</p>
+                    <p class="metric-status status-subtext">Расчет с округлением ложек на прием до ${safeToFixed(roundedScoopsPerMeal, 2)} шт. ${waterRoundingInfo}</p>
                     <p class="metric-status status-caloric-change">
-                        <strong>Изменение калоража:</strong> ${caloricChange > 0 ? '+' : ''}${caloricChange.toFixed(0)} ккал.
+                        <strong>Изменение калоража:</strong> ${caloricChange > 0 ? '+' : ''}${safeToFixed(caloricChange, 0)} ккал.
                         (${roundToTwo((roundedResult.totalCalculatedKcal / dailyNeed) * 100)}% от потребности)
                     </p>
                 </div>
@@ -826,13 +861,13 @@ function calculateRation() {
                     <div class="patient-metrics">
                         <div class="result-card">
                             <h5>Для Точного Рациона</h5>
-                            <p class="metric-value">${additionalFluidExact.toFixed(0)} мл</p>
-                            <p class="metric-status">ЖВО (${totalFluidNeedMl.toFixed(0)} мл) - Вода в смеси (${totalWaterInRationExact.toFixed(0)} мл)</p>
+                            <p class="metric-value">${safeToFixed(additionalFluidExact, 0)} мл</p>
+                            <p class="metric-status">ЖВО (${safeToFixed(totalFluidNeedMl, 0)} мл) - Вода в смеси (${safeToFixed(totalWaterInRationExact, 0)} мл)</p>
                         </div>
                         <div class="result-card">
                             <h5>Для Округленного Рациона</h5>
-                            <p class="metric-value">${additionalFluidRounded.toFixed(0)} мл</p>
-                            <p class="metric-status">ЖВО (${totalFluidNeedMl.toFixed(0)} мл) - Вода в смеси (${totalWaterInRationRounded.toFixed(0)} мл)</p>
+                            <p class="metric-value">${safeToFixed(additionalFluidRounded, 0)} мл</p>
+                            <p class="metric-status">ЖВО (${safeToFixed(totalFluidNeedMl, 0)} мл) - Вода в смеси (${safeToFixed(totalWaterInRationRounded, 0)} мл)</p>
                         </div>
                     </div>
                 </div>
@@ -846,7 +881,7 @@ function calculateRation() {
         }).catch(error => {
             // Исправлена ошибка в .catch, чтобы показать более подробную информацию, если возможно
             console.error('Ошибка при получении данных продукта (Детали):', error);
-            showError('Ошибка при получении данных продукта: ' + error.message);
+            showError('Ошибка при получении данных продукта: ' + (error.message || 'Неизвестная ошибка (проверьте консоль)'));
         });
 
     } catch (error) {
@@ -991,7 +1026,7 @@ function initModal() {
 
         const productId = document.getElementById('productId').value;
         const product = {
-            // Добавлено || 0 для числовых полей, где это было пропущено ранее
+            // Добавлено || 0 для числовых полей
             name: document.getElementById('productName').value,
             calories: parseFloat(document.getElementById('productCalories').value) || 0,
             proteins: parseFloat(document.getElementById('proteins').value) || 0,
@@ -1089,48 +1124,48 @@ function exportToExcel() {
         ["Параметр", "Точный расчет", "Упрощенный расчет"],
         ["Продукт", selectedProduct.name, selectedProduct.name],
         ["Состав порции", exactResult.baseServingDescription, roundedResult.baseServingDescription],
-        ["Суточная потребность, ккал", dailyNeed, dailyNeed],
+        ["Суточная потребность, ккал", safeToFixed(dailyNeed, 0), safeToFixed(dailyNeed, 0)],
         ["Количество приемов", feedingsPerDay, feedingsPerDay],
-        ["Концентрация, ккал/мл", exactResult.kcalPerMl.toFixed(2), roundedResult.kcalPerMl.toFixed(2)],
+        ["Концентрация, ккал/мл", safeToFixed(exactResult.kcalPerMl, 2), safeToFixed(roundedResult.kcalPerMl, 2)],
         ["---", "---", "---"],
 
         // НА ОДИН ПРИЕМ
         ["Ложек на прием, шт.", roundToTwo(exactResult.requiredScoopsPerMeal), roundToTwo(roundedResult.requiredScoopsPerMeal)],
         ["Воды на прием, мл", roundToTwo(exactResult.requiredWaterPerMeal), roundToTwo(roundedResult.requiredWaterPerMeal)],
-        ["Объем готового р-ра на прием, мл", exactResult.volumePerMealMl.toFixed(0), roundedResult.volumePerMealMl.toFixed(0)],
-        ["Калорийность на прием, ккал", exactResult.kcalPerMeal.toFixed(0), roundedResult.kcalPerMeal.toFixed(0)],
-        ["Белки на прием, г", exactResult.proteinPerMeal.toFixed(1), roundedResult.proteinPerMeal.toFixed(1)],
-        ["Жиры на прием, г", exactResult.fatPerMeal.toFixed(1), roundedResult.fatPerMeal.toFixed(1)],
-        ["Углеводы на прием, г", exactResult.carbsPerMeal.toFixed(1), roundedResult.carbsPerMeal.toFixed(1)],
+        ["Объем готового р-ра на прием, мл", safeToFixed(exactResult.volumePerMealMl, 0), safeToFixed(roundedResult.volumePerMealMl, 0)],
+        ["Калорийность на прием, ккал", safeToFixed(exactResult.kcalPerMeal, 0), safeToFixed(roundedResult.kcalPerMeal, 0)],
+        ["Белки на прием, г", safeToFixed(exactResult.proteinPerMeal, 1), safeToFixed(roundedResult.proteinPerMeal, 1)],
+        ["Жиры на прием, г", safeToFixed(exactResult.fatPerMeal, 1), safeToFixed(roundedResult.fatPerMeal, 1)],
+        ["Углеводы на прием, г", safeToFixed(exactResult.carbsPerMeal, 1), safeToFixed(roundedResult.carbsPerMeal, 1)],
         ["---", "---", "---"],
 
         // НА СУТКИ
-        ["Вес сухой смеси, г", exactResult.totalMixWeightGrams.toFixed(1), roundedResult.totalMixWeightGrams.toFixed(1)],
-        ["Общее количество ложек, шт.", exactResult.requiredScoopsTotal.toFixed(2), roundedResult.requiredScoopsTotal.toFixed(2)],
-        ["Общее количество воды, мл", exactResult.requiredWaterMl.toFixed(0), roundedResult.requiredWaterMl.toFixed(0)],
-        ["Общий объем раствора, мл", exactResult.requiredVolumeMl.toFixed(0), roundedResult.requiredVolumeMl.toFixed(0)],
-        ["Общая калорийность, ккал", exactResult.totalCalculatedKcal.toFixed(0), roundedResult.totalCalculatedKcal.toFixed(0)],
-        ["Общее количество белка, г", exactResult.totalProteinGrams.toFixed(1), roundedResult.totalProteinGrams.toFixed(1)],
-        ["Общее количество жиров, г", exactResult.totalFatGrams.toFixed(1), roundedResult.totalFatGrams.toFixed(1)],
-        ["Общее количество углеводов, г", exactResult.totalCarbsGrams.toFixed(1), roundedResult.totalCarbsGrams.toFixed(1)],
+        ["Вес сухой смеси, г", safeToFixed(exactResult.totalMixWeightGrams, 1), safeToFixed(roundedResult.totalMixWeightGrams, 1)],
+        ["Общее количество ложек, шт.", safeToFixed(exactResult.requiredScoopsTotal, 2), safeToFixed(roundedResult.requiredScoopsTotal, 2)],
+        ["Общее количество воды, мл", safeToFixed(exactResult.requiredWaterMl, 0), safeToFixed(roundedResult.requiredWaterMl, 0)],
+        ["Общий объем раствора, мл", safeToFixed(exactResult.requiredVolumeMl, 0), safeToFixed(roundedResult.requiredVolumeMl, 0)],
+        ["Общая калорийность, ккал", safeToFixed(exactResult.totalCalculatedKcal, 0), safeToFixed(roundedResult.totalCalculatedKcal, 0)],
+        ["Общее количество белка, г", safeToFixed(exactResult.totalProteinGrams, 1), safeToFixed(roundedResult.totalProteinGrams, 1)],
+        ["Общее количество жиров, г", safeToFixed(exactResult.totalFatGrams, 1), safeToFixed(roundedResult.totalFatGrams, 1)],
+        ["Общее количество углеводов, г", safeToFixed(exactResult.totalCarbsGrams, 1), safeToFixed(roundedResult.totalCarbsGrams, 1)],
         ["---", "---", "---"],
 
         // РАСХОД
-        ["На сколько суток хватит банки, дн.", exactResult.daysSupply > 0 ? exactResult.daysSupply.toFixed(1) : 'Н/Д', roundedResult.daysSupply > 0 ? roundedResult.daysSupply.toFixed(1) : 'Н/Д'],
-        ["Сколько банок нужно на месяц (30 дн.), шт.", exactResult.canSupplyPerMonth > 0 ? exactResult.canSupplyPerMonth.toFixed(1) : 'Н/Д', roundedResult.canSupplyPerMonth > 0 ? roundedResult.canSupplyPerMonth.toFixed(1) : 'Н/Д'], // ДОБАВЛЕНО
+        ["На сколько суток хватит банки, дн.", exactResult.daysSupply > 0 ? safeToFixed(exactResult.daysSupply, 1) : 'Н/Д', roundedResult.daysSupply > 0 ? safeToFixed(roundedResult.daysSupply, 1) : 'Н/Д'],
+        ["Сколько банок нужно на месяц (30 дн.), шт.", exactResult.canSupplyPerMonth > 0 ? safeToFixed(exactResult.canSupplyPerMonth, 1) : 'Н/Д', roundedResult.canSupplyPerMonth > 0 ? safeToFixed(roundedResult.canSupplyPerMonth, 1) : 'Н/Д'], // ДОБАВЛЕНО
         ["---", "---", "---"],
 
         // ЖВО
-        ["Целевое ЖВО, мл", totalFluidNeedMl.toFixed(0), totalFluidNeedMl.toFixed(0)],
-        ["Вода из смеси, мл", totalWaterInRationExact.toFixed(0), totalWaterInRationRounded.toFixed(0)],
-        ["Дополнительная жидкость, мл", additionalFluidExact.toFixed(0), additionalFluidRounded.toFixed(0)],
+        ["Целевое ЖВО, мл", safeToFixed(totalFluidNeedMl, 0), safeToFixed(totalFluidNeedMl, 0)],
+        ["Вода из смеси, мл", safeToFixed(totalWaterInRationExact, 0), safeToFixed(totalWaterInRationRounded, 0)],
+        ["Дополнительная жидкость, мл", safeToFixed(additionalFluidExact, 0), safeToFixed(additionalFluidRounded, 0)],
     ];
 
     const ws = XLSX.utils.aoa_to_sheet(data);
 
     // Добавление калоража с округлением
     XLSX.utils.sheet_add_aoa(ws, [
-        ["Изменение калоража:", "", `${caloricChange > 0 ? '+' : ''}${caloricChange.toFixed(0)} ккал`]
+        ["Изменение калоража:", "", `${caloricChange > 0 ? '+' : ''}${safeToFixed(caloricChange, 0)} ккал`]
     ], { origin: -1 });
 
     const wb = XLSX.utils.book_new();
