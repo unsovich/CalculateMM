@@ -253,9 +253,34 @@ function getProteinTarget(weight, proteinNeedPerKg) {
     return weight > 0 ? weight * proteinNeedPerKg : 0;
 }
 
+/**
+ * Расчет суточной потребности в жидкости (ЖВО) по формуле Holliday-Segar 4-2-1.
+ * @param {number} weight - Вес пациента в кг.
+ * @returns {number} Объем жидкости в мл.
+ */
 function getFluidNeed(weight) {
-    // 35 мл/кг - средняя потребность
-    return weight > 0 ? weight * 35 : 0;
+    if (weight <= 0) {
+        return 0;
+    }
+
+    let totalFluid = 0;
+
+    if (weight > 20) {
+        // Больше 20 кг: 20 мл/кг для веса свыше 20 кг
+        totalFluid += (weight - 20) * 20;
+        // Первые 20 кг = 1500 мл (10*100 + 10*50)
+        totalFluid += 1500;
+    } else if (weight > 10) {
+        // 11-20 кг: 50 мл/кг для веса с 11 до 20 кг
+        totalFluid += (weight - 10) * 50;
+        // Первые 10 кг = 1000 мл (10*100)
+        totalFluid += 1000;
+    } else {
+        // 0-10 кг: 100 мл/кг
+        totalFluid = weight * 100;
+    }
+
+    return totalFluid;
 }
 
 function updatePatientMetrics() {
@@ -282,7 +307,7 @@ function updatePatientMetrics() {
     const bmi = calculateBMI(weight, height);
     const bmr = calculateBMR(weight, height, age, gender);
     const proteinTarget = getProteinTarget(weight, proteinNeedPerKg);
-    const fluidNeed = getFluidNeed(weight);
+    const fluidNeed = getFluidNeed(weight); // Используем Holliday-Segar
 
     let dailyNeed = null;
 
@@ -324,10 +349,10 @@ function updatePatientMetrics() {
         dailyNeedStatus.textContent = 'ОО * Фактор активности';
     }
 
-    // Обновление ЖВО
+    // Обновление ЖВО (используем Holliday-Segar)
     fluidNeedResult.textContent = `${fluidNeed.toFixed(0)} мл/сутки`;
     fluidNeedResult.style.color = '#9b59b6';
-    fluidNeedStatus.textContent = `Формула: ${proteinNeedPerKg} мл/кг`;
+    fluidNeedStatus.textContent = `Формула: Holliday-Segar 4-2-1`; // Обновлено
     fluidNeedResult.dataset.totalFluid = fluidNeed.toFixed(0); // Сохраняем ЖВО для дальнейшего расчета
 
 
@@ -369,8 +394,10 @@ function runCalculation(product, dailyNeed, feedingsPerDay, concentrationType, s
 
     // Базовые метрики для одной ложки
     const kcalPerScoop = (product.calories * product.scoopWeight) / 100;
-    // Используем 'proteins'
     const proteinPerScoop = (product.proteins * product.scoopWeight) / 100;
+    // --- НОВЫЕ РАСЧЕТЫ: ЖИРЫ И УГЛЕВОДЫ НА ЛОЖКУ ---
+    const fatPerScoop = (product.fats * product.scoopWeight) / 100;
+    const carbsPerScoop = (product.carbs * product.scoopWeight) / 100;
 
     // Проверка, что продукт настроен для выбранной концентрации
     if (servingVolume === 0 || scoopsPerServing === 0) {
@@ -403,22 +430,47 @@ function runCalculation(product, dailyNeed, feedingsPerDay, concentrationType, s
     // Вода на один прием (мл/прием)
     const requiredWaterPerMeal = totalWaterInRationExact / feedingsPerDay;
 
+    // --- РАСЧЕТ ТОЧНЫХ СУТОЧНЫХ НУТРИЕНТОВ И ВЕСА СМЕСИ ---
+    const totalMixWeightGramsExact = requiredScoopsTotal * product.scoopWeight;
+    const totalKcalExact = kcalPerScoop * requiredScoopsTotal;
+    const totalProteinGramsExact = proteinPerScoop * requiredScoopsTotal;
+    const totalFatGramsExact = fatPerScoop * requiredScoopsTotal;
+    const totalCarbsGramsExact = carbsPerScoop * requiredScoopsTotal;
+
+    // Расчет дней до окончания упаковки
+    const daysSupplyExact = (product.packageAmount > 0 && totalMixWeightGramsExact > 0)
+        ? (product.packageAmount / totalMixWeightGramsExact)
+        : 0;
+
     const exactResult = {
+        // Метрики
         concentration,
         kcalPerMl: concentration,
         scoopsPerServing,
         waterPerServing,
-        totalCalculatedKcal: dailyNeed,
+        baseServingDescription: `${scoopsPerServing} ложек на ${waterPerServing} мл воды`,
+        feedingsPerDay: feedingsPerDay, // Добавлено
+
+        // Суточные итоги
+        totalCalculatedKcal: totalKcalExact,
+        totalProteinGrams: totalProteinGramsExact,
+        totalFatGrams: totalFatGramsExact,
+        totalCarbsGrams: totalCarbsGramsExact,
+        totalMixWeightGrams: totalMixWeightGramsExact,
         requiredVolumeMl: requiredVolumeMl,
         requiredScoopsTotal: requiredScoopsTotal,
+        requiredWaterMl: totalWaterInRationExact,
+        dailyVolumeLitres: requiredVolumeMl / 1000,
+        daysSupply: daysSupplyExact, // Добавлено
+
+        // На один прием
         requiredScoopsPerMeal: requiredScoopsPerMeal,
         requiredWaterPerMeal: requiredWaterPerMeal,
-        totalProteinGrams: (proteinPerScoop * requiredScoopsTotal),
-        dailyVolumeLitres: requiredVolumeMl / 1000,
         volumePerMealMl: requiredVolumeMl / feedingsPerDay,
-        proteinPer1000Kcal: (proteinPerScoop * (1000 / kcalPerScoop)),
-        requiredWaterMl: totalWaterInRationExact, // Общее количество воды в рационе (важно для расчета ЖВО)
-        baseServingDescription: `${scoopsPerServing} ложек на ${waterPerServing} мл воды`
+        kcalPerMeal: totalKcalExact / feedingsPerDay,
+        proteinPerMeal: totalProteinGramsExact / feedingsPerDay,
+        fatPerMeal: totalFatGramsExact / feedingsPerDay,
+        carbsPerMeal: totalCarbsGramsExact / feedingsPerDay,
     };
 
 
@@ -451,43 +503,109 @@ function runCalculation(product, dailyNeed, feedingsPerDay, concentrationType, s
     // Пересчитываем общий объем раствора (объем готовой порции / ложек на порцию * ложек всего)
     const roundedVolumeMl = (servingVolume / scoopsPerServing) * roundedScoopsTotal;
 
-    // Пересчитываем общий калораж
-    const totalCalculatedKcal = roundedScoopsTotal * kcalPerScoop;
+    // --- РАСЧЕТ ОКРУГЛЕННЫХ СУТОЧНЫХ НУТРИЕНТОВ И ВЕСА СМЕСИ ---
+    const totalMixWeightGramsRounded = roundedScoopsTotal * product.scoopWeight;
+    const totalKcalRounded = kcalPerScoop * roundedScoopsTotal;
+    const totalProteinGramsRounded = proteinPerScoop * roundedScoopsTotal;
+    const totalFatGramsRounded = fatPerScoop * roundedScoopsTotal;
+    const totalCarbsGramsRounded = carbsPerScoop * roundedScoopsTotal;
+
+    // Расчет дней до окончания упаковки
+    const daysSupplyRounded = (product.packageAmount > 0 && totalMixWeightGramsRounded > 0)
+        ? (product.packageAmount / totalMixWeightGramsRounded)
+        : 0;
 
     const roundedResult = {
+        // Метрики
         concentration,
         kcalPerMl: concentration,
         scoopsPerServing,
         waterPerServing,
-        totalCalculatedKcal: totalCalculatedKcal,
+        baseServingDescription: `${scoopsPerServing} ложек на ${waterPerServing} мл воды`,
+        feedingsPerDay: feedingsPerDay, // Добавлено
+
+        // Суточные итоги
+        totalCalculatedKcal: totalKcalRounded,
+        totalProteinGrams: totalProteinGramsRounded,
+        totalFatGrams: totalFatGramsRounded,
+        totalCarbsGrams: totalCarbsGramsRounded,
+        totalMixWeightGrams: totalMixWeightGramsRounded,
         requiredVolumeMl: roundedVolumeMl,
         requiredScoopsTotal: roundedScoopsTotal,
+        requiredWaterMl: requiredWaterMl,
+        dailyVolumeLitres: roundedVolumeMl / 1000,
+        daysSupply: daysSupplyRounded, // Добавлено
+
+        // На один прием
         requiredScoopsPerMeal: roundedScoopsPerMeal,
         requiredWaterPerMeal: roundedWaterPerMeal,
-        totalProteinGrams: (proteinPerScoop * roundedScoopsTotal),
-        dailyVolumeLitres: roundedVolumeMl / 1000,
         volumePerMealMl: roundedVolumeMl / feedingsPerDay,
-        proteinPer1000Kcal: (proteinPerScoop * (1000 / kcalPerScoop)),
-        requiredWaterMl: requiredWaterMl, // Общее количество воды в рационе (важно для расчета ЖВО)
-        baseServingDescription: `${scoopsPerServing} ложек на ${waterPerServing} мл воды`
+        kcalPerMeal: totalKcalRounded / feedingsPerDay,
+        proteinPerMeal: totalProteinGramsRounded / feedingsPerDay,
+        fatPerMeal: totalFatGramsRounded / feedingsPerDay,
+        carbsPerMeal: totalCarbsGramsRounded / feedingsPerDay,
     };
 
     return { exact: exactResult, rounded: roundedResult, roundedScoopsPerMeal };
 }
 
+/**
+ * Генерирует HTML-таблицу с результатами расчета в новом формате.
+ * @param {object} result - Результат расчета (exactResult или roundedResult).
+ * @returns {string} HTML-код таблицы.
+ */
 function buildRationTableHTML(result) {
     const tableHTML = `
         <table class="results-table">
             <thead>
                 <tr>
-                    <th>Параметр</th>
-                    <th>Значение</th>
+                    <th colspan="2">На один прием (Количество приемов: ${result.feedingsPerDay})</th>
                 </tr>
             </thead>
             <tbody>
                 <tr>
+                    <td>Ложек</td>
+                    <td class="highlight">${roundToTwo(result.requiredScoopsPerMeal)} шт.</td>
+                </tr>
+                <tr>
+                    <td>Воды</td>
+                    <td class="highlight">${roundToTwo(result.requiredWaterPerMeal)} мл</td>
+                </tr>
+                <tr>
+                    <td>Готовый раствор (прибл.)</td>
+                    <td class="highlight">${result.volumePerMealMl.toFixed(0)} мл</td>
+                </tr>
+                <tr>
+                    <td>Калорийность</td>
+                    <td>${result.kcalPerMeal.toFixed(0)} ккал</td>
+                </tr>
+                <tr>
+                    <td>Белки</td>
+                    <td>${result.proteinPerMeal.toFixed(1)} г</td>
+                </tr>
+                <tr>
+                    <td>Жиры</td>
+                    <td>${result.fatPerMeal.toFixed(1)} г</td>
+                </tr>
+                <tr>
+                    <td>Углеводы</td>
+                    <td>${result.carbsPerMeal.toFixed(1)} г</td>
+                </tr>
+            </tbody>
+
+            <thead>
+                <tr>
+                    <th colspan="2">На сутки (Итого)</th>
+                </tr>
+            </thead>
+            <tbody>
+                <tr>
+                    <td>Вес сухой смеси</td>
+                    <td class="highlight">${result.totalMixWeightGrams.toFixed(1)} г</td>
+                </tr>
+                <tr>
                     <td>Общее количество ложек</td>
-                    <td class="highlight">${roundToTwo(result.requiredScoopsTotal)} шт.</td>
+                    <td>${result.requiredScoopsTotal.toFixed(2)} шт.</td>
                 </tr>
                 <tr>
                     <td>Общее количество воды</td>
@@ -498,44 +616,39 @@ function buildRationTableHTML(result) {
                     <td class="highlight">${result.requiredVolumeMl.toFixed(0)} мл (${result.dailyVolumeLitres.toFixed(2)} л)</td>
                 </tr>
                 <tr>
-                    <td>Общий калораж</td>
-                    <td class="highlight">${result.totalCalculatedKcal.toFixed(0)} ккал</td>
+                    <td>Калорийность</td>
+                    <td>${result.totalCalculatedKcal.toFixed(0)} ккал</td>
                 </tr>
                 <tr>
-                    <td>Общее количество белка</td>
-                    <td class="highlight">${result.totalProteinGrams.toFixed(1)} г</td>
+                    <td>Белки</td>
+                    <td>${result.totalProteinGrams.toFixed(1)} г</td>
                 </tr>
                 <tr>
-                    <td colspan="2"><strong>На один прием (в сутки)</strong></td>
+                    <td>Жиры</td>
+                    <td>${result.totalFatGrams.toFixed(1)} г</td>
                 </tr>
                 <tr>
-                    <td>Ложек на прием</td>
-                    <td class="highlight">${roundToTwo(result.requiredScoopsPerMeal)} шт.</td>
+                    <td>Углеводы</td>
+                    <td>${result.totalCarbsGrams.toFixed(1)} г</td>
                 </tr>
+            </tbody>
+
+            <thead>
                 <tr>
-                    <td>Воды на прием</td>
-                    <td>${roundToTwo(result.requiredWaterPerMeal)} мл</td>
+                    <th colspan="2">Расход продукта</th>
                 </tr>
+            </thead>
+            <tbody>
                 <tr>
-                    <td>Объем готового раствора на прием (прибл.)</td>
-                    <td>${result.volumePerMealMl.toFixed(0)} мл</td>
-                </tr>
-                <tr>
-                    <td colspan="2"><strong>Концентрация и белок</strong></td>
-                </tr>
-                <tr>
-                    <td>Концентрация</td>
-                    <td>${result.kcalPerMl.toFixed(2)} ккал/мл</td>
-                </tr>
-                <tr>
-                    <td>Белок на 1000 ккал</td>
-                    <td>${result.proteinPer1000Kcal.toFixed(1)} г</td>
+                    <td>На сколько суток хватит банки смеси</td>
+                    <td class="highlight">${result.daysSupply > 0 ? result.daysSupply.toFixed(1) + ' дн.' : 'Н/Д (Вес упаковки не указан)'}</td>
                 </tr>
             </tbody>
         </table>
     `;
     return tableHTML;
 }
+
 
 function calculateRation() {
     const rationResultDiv = document.getElementById('rationResult');
@@ -619,6 +732,7 @@ function calculateRation() {
                         <strong>Тип разведения:</strong> ${concentrationName}.
                         <strong>Концентрация:</strong> ${exactResult.kcalPerMl.toFixed(2)} ккал/мл.
                         <strong>Базовая порция:</strong> ${exactResult.baseServingDescription}.
+                        <strong>Белок на 1000 ккал:</strong> ${exactResult.totalProteinGrams / (exactResult.totalCalculatedKcal / 1000) || 0.0} г.
                     </p>
                 </div>
             `;
@@ -916,15 +1030,33 @@ function exportToExcel() {
         ["Количество приемов", feedingsPerDay, feedingsPerDay],
         ["Концентрация, ккал/мл", exactResult.kcalPerMl.toFixed(2), roundedResult.kcalPerMl.toFixed(2)],
         ["---", "---", "---"],
-        ["Общий объем раствора, мл", exactResult.requiredVolumeMl.toFixed(0), roundedResult.requiredVolumeMl.toFixed(0)],
-        ["Общий калораж, ккал", exactResult.totalCalculatedKcal.toFixed(0), roundedResult.totalCalculatedKcal.toFixed(0)],
-        ["Общее количество белка, г", exactResult.totalProteinGrams.toFixed(1), roundedResult.totalProteinGrams.toFixed(1)],
-        ["Общее количество ложек, шт.", exactResult.requiredScoopsTotal.toFixed(2), roundedResult.requiredScoopsTotal.toFixed(2)],
-        ["---", "---", "---"],
+
+        // НА ОДИН ПРИЕМ
         ["Ложек на прием, шт.", roundToTwo(exactResult.requiredScoopsPerMeal), roundToTwo(roundedResult.requiredScoopsPerMeal)],
         ["Воды на прием, мл", roundToTwo(exactResult.requiredWaterPerMeal), roundToTwo(roundedResult.requiredWaterPerMeal)],
         ["Объем готового р-ра на прием, мл", exactResult.volumePerMealMl.toFixed(0), roundedResult.volumePerMealMl.toFixed(0)],
+        ["Калорийность на прием, ккал", exactResult.kcalPerMeal.toFixed(0), roundedResult.kcalPerMeal.toFixed(0)],
+        ["Белки на прием, г", exactResult.proteinPerMeal.toFixed(1), roundedResult.proteinPerMeal.toFixed(1)],
+        ["Жиры на прием, г", exactResult.fatPerMeal.toFixed(1), roundedResult.fatPerMeal.toFixed(1)],
+        ["Углеводы на прием, г", exactResult.carbsPerMeal.toFixed(1), roundedResult.carbsPerMeal.toFixed(1)],
         ["---", "---", "---"],
+
+        // НА СУТКИ
+        ["Вес сухой смеси, г", exactResult.totalMixWeightGrams.toFixed(1), roundedResult.totalMixWeightGrams.toFixed(1)],
+        ["Общее количество ложек, шт.", exactResult.requiredScoopsTotal.toFixed(2), roundedResult.requiredScoopsTotal.toFixed(2)],
+        ["Общее количество воды, мл", exactResult.requiredWaterMl.toFixed(0), roundedResult.requiredWaterMl.toFixed(0)],
+        ["Общий объем раствора, мл", exactResult.requiredVolumeMl.toFixed(0), roundedResult.requiredVolumeMl.toFixed(0)],
+        ["Общая калорийность, ккал", exactResult.totalCalculatedKcal.toFixed(0), roundedResult.totalCalculatedKcal.toFixed(0)],
+        ["Общее количество белка, г", exactResult.totalProteinGrams.toFixed(1), roundedResult.totalProteinGrams.toFixed(1)],
+        ["Общее количество жиров, г", exactResult.totalFatGrams.toFixed(1), roundedResult.totalFatGrams.toFixed(1)],
+        ["Общее количество углеводов, г", exactResult.totalCarbsGrams.toFixed(1), roundedResult.totalCarbsGrams.toFixed(1)],
+        ["---", "---", "---"],
+
+        // РАСХОД
+        ["На сколько суток хватит банки", exactResult.daysSupply > 0 ? exactResult.daysSupply.toFixed(1) + ' дн.' : 'Н/Д', roundedResult.daysSupply > 0 ? roundedResult.daysSupply.toFixed(1) + ' дн.' : 'Н/Д'],
+        ["---", "---", "---"],
+
+        // ЖВО
         ["Целевое ЖВО, мл", totalFluidNeedMl.toFixed(0), totalFluidNeedMl.toFixed(0)],
         ["Вода из смеси, мл", totalWaterInRationExact.toFixed(0), totalWaterInRationRounded.toFixed(0)],
         ["Дополнительная жидкость, мл", additionalFluidExact.toFixed(0), additionalFluidRounded.toFixed(0)],
