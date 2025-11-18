@@ -466,7 +466,7 @@ function buildRationTableHTML(result) {
             </thead>
             <tbody>
                 <tr>
-                    <td data-label="Количество приемов (шт/сутки)">Количество приемов (шт/сутки)</td>
+                    <td data-label="Количество приемов смеси">Количество приемов смеси</td>
                     <td class="highlight">${result.mealsPerDay}</td>
                 </tr>
                 <tr>
@@ -569,19 +569,36 @@ function calculateRation() {
     const roundedResult = performRationCalculation(dailyNeed, selectedProduct, concentrationType, numMeals, roundedScoopsPerMeal);
 
 
-    // --- 5. Расчет дополнительной жидкости (на основе ТОЧНОГО РАСЧЕТА) ---
-    const totalWaterInRation = exactResult.requiredWaterMl;
-    const additionalFluid = Math.max(0, totalFluidNeedMl - totalWaterInRation);
+    // --- 4. Расчет дополнительной жидкости ---
+    const totalFluidNeedMl = parseFloat(document.getElementById('totalFluidNeed').dataset.totalFluid) || 0;
 
-    document.getElementById('additionalFluidResult').innerHTML = `
-        <div class="results-section">
-            <h4>💧 Расчет дополнительной жидкости</h4>
-            <div class="result-card result-portion-volume">
-                <h5>Дополнительный объем жидкости</h5>
-                <p class="small-metric-value">${additionalFluid} мл</p>
-                <p class="metric-status">ЖВО (${totalFluidNeedMl} мл) - Вода в смеси (${totalWaterInRation} мл)</p>
+    // Расчет для Точного рациона
+    const totalWaterInRationExact = exactResult.requiredWaterMl;
+    const additionalFluidExact = Math.max(0, totalFluidNeedMl - totalWaterInRationExact);
+
+    // Расчет для Округленного рациона
+    const totalWaterInRationRounded = roundedResult.requiredWaterMl;
+    const additionalFluidRounded = Math.max(0, totalFluidNeedMl - totalWaterInRationRounded);
+
+    // 5. Формирование HTML для дополнительной жидкости
+    const additionalFluidResultDiv = document.getElementById('additionalFluidResult');
+
+    additionalFluidResultDiv.innerHTML = `
+    <div class="results-section">
+        <h4>💧 Расчет дополнительной жидкости</h4>
+        <div class="patient-metrics">
+            <div class="result-card">
+                <h5>Для Точного Рациона</h5>
+                <p class="metric-value">${additionalFluidExact} мл</p>
+                <p class="metric-status">ЖВО (${totalFluidNeedMl} мл) - Вода в смеси (${totalWaterInRationExact} мл)</p>
+            </div>
+            <div class="result-card">
+                <h5>Для Округленного Рациона</h5>
+                <p class="metric-value">${additionalFluidRounded} мл</p>
+                <p class="metric-status">ЖВО (${totalFluidNeedMl} мл) - Вода в смеси (${totalWaterInRationRounded} мл)</p>
             </div>
         </div>
+    </div>
     `;
 
 
