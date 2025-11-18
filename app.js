@@ -476,6 +476,9 @@ function runCalculation(product, dailyNeed, feedingsPerDay, concentrationType, s
         ? (product.packageAmount / totalMixWeightGramsExact)
         : 0;
 
+    // NEW: Сколько банок нужно на месяц (30 дней)
+    const canSupplyPerMonthExact = daysSupplyExact > 0 ? (30 / daysSupplyExact) : 0;
+
     const exactResult = {
         // Метрики
         concentration,
@@ -495,7 +498,8 @@ function runCalculation(product, dailyNeed, feedingsPerDay, concentrationType, s
         requiredScoopsTotal: requiredScoopsTotal,
         requiredWaterMl: totalWaterInRationExact,
         dailyVolumeLitres: requiredVolumeMl / 1000,
-        daysSupply: daysSupplyExact, // Добавлено
+        daysSupply: daysSupplyExact,
+        canSupplyPerMonth: canSupplyPerMonthExact, // ДОБАВЛЕНО
 
         // На один прием
         requiredScoopsPerMeal: requiredScoopsTotal / feedingsPerDay,
@@ -549,6 +553,10 @@ function runCalculation(product, dailyNeed, feedingsPerDay, concentrationType, s
         ? (product.packageAmount / totalMixWeightGramsRounded)
         : 0;
 
+    // NEW: Сколько банок нужно на месяц (30 дней)
+    const canSupplyPerMonthRounded = daysSupplyRounded > 0 ? (30 / daysSupplyRounded) : 0;
+
+
     const roundedResult = {
         // Метрики
         concentration,
@@ -568,7 +576,8 @@ function runCalculation(product, dailyNeed, feedingsPerDay, concentrationType, s
         requiredScoopsTotal: roundedScoopsTotal,
         requiredWaterMl: requiredWaterMl,
         dailyVolumeLitres: roundedVolumeMl / 1000,
-        daysSupply: daysSupplyRounded, // Добавлено
+        daysSupply: daysSupplyRounded,
+        canSupplyPerMonth: canSupplyPerMonthRounded, // ДОБАВЛЕНО
 
         // На один прием
         requiredScoopsPerMeal: roundedScoopsPerMeal,
@@ -663,7 +672,7 @@ function buildRationTableHTML(result) {
                 </tr>
                 <tr>
                     <td>Углеводы</td>
-                    <td>${result.totalCarbsGrams.toFixed(1)} г</td>
+                    <td>${result.carbsPerCarbs.toFixed(1)} г</td>
                 </tr>
             </tbody>
 
@@ -676,6 +685,10 @@ function buildRationTableHTML(result) {
                 <tr>
                     <td>На сколько суток хватит банки смеси</td>
                     <td class="highlight">${result.daysSupply > 0 ? result.daysSupply.toFixed(1) + ' дн.' : 'Н/Д (Вес упаковки не указан)'}</td>
+                </tr>
+                <tr>
+                    <td>Сколько банок нужно на месяц (30 дн.)</td>
+                    <td class="highlight">${result.canSupplyPerMonth > 0 ? result.canSupplyPerMonth.toFixed(1) + ' шт.' : 'Н/Д (Вес упаковки не указан)'}</td>
                 </tr>
             </tbody>
         </table>
@@ -746,7 +759,7 @@ function calculateRation() {
 
             // Точный расчет: использует пустой элемент для компенсации высоты блока статуса
             const exactStatus = `
-                <div class="status-block-container">
+                <div class="status-block-wrapper">
                     <p class="metric-status status-subtext">Расчет для полного удовлетворения потребности в Ккал</p>
                     <p class="metric-status status-caloric-change empty-placeholder">&nbsp;</p>
                 </div>
@@ -757,7 +770,7 @@ function calculateRation() {
             const waterRoundingInfo = (roundedResult.requiredWaterMl % 10 !== 0) ? '' : `Вода округлена до ${roundedResult.requiredWaterMl.toFixed(0)} мл (кратное 10).`;
 
             const roundedStatus = `
-                <div class="status-block-container">
+                <div class="status-block-wrapper">
                     <p class="metric-status status-subtext">Расчет с округлением ложек на прием до ${roundedScoopsPerMeal} шт. ${waterRoundingInfo}</p>
                     <p class="metric-status status-caloric-change">
                         <strong>Изменение калоража:</strong> ${caloricChange > 0 ? '+' : ''}${caloricChange.toFixed(0)} ккал.
@@ -786,7 +799,7 @@ function calculateRation() {
 
             rationResultDiv.style.display = 'block';
 
-            // --- 2. Расчет и вывод дополнительной жидкости (перенесен в конец) ---
+            // --- 2. Расчет и вывод дополнительной жидкости (перенесен в самый низ) ---
 
             // Расчет для Точного рациона
             const totalWaterInRationExact = exactResult.requiredWaterMl;
@@ -1086,11 +1099,12 @@ function exportToExcel() {
         ["Общая калорийность, ккал", exactResult.totalCalculatedKcal.toFixed(0), roundedResult.totalCalculatedKcal.toFixed(0)],
         ["Общее количество белка, г", exactResult.totalProteinGrams.toFixed(1), roundedResult.totalProteinGrams.toFixed(1)],
         ["Общее количество жиров, г", exactResult.totalFatGrams.toFixed(1), roundedResult.totalFatGrams.toFixed(1)],
-        ["Общее количество углеводов, г", exactResult.totalCarbsGrams.toFixed(1), roundedResult.totalCarbsGrams.toFixed(1)],
+        ["Общее количество углеводов, г", exactResult.carbsPerMeal.toFixed(1), roundedResult.carbsPerMeal.toFixed(1)],
         ["---", "---", "---"],
 
         // РАСХОД
-        ["На сколько суток хватит банки", exactResult.daysSupply > 0 ? exactResult.daysSupply.toFixed(1) + ' дн.' : 'Н/Д', roundedResult.daysSupply > 0 ? roundedResult.daysSupply.toFixed(1) + ' дн.' : 'Н/Д'],
+        ["На сколько суток хватит банки, дн.", exactResult.daysSupply > 0 ? exactResult.daysSupply.toFixed(1) : 'Н/Д', roundedResult.daysSupply > 0 ? roundedResult.daysSupply.toFixed(1) : 'Н/Д'],
+        ["Сколько банок нужно на месяц (30 дн.), шт.", exactResult.canSupplyPerMonth > 0 ? exactResult.canSupplyPerMonth.toFixed(1) : 'Н/Д', roundedResult.canSupplyPerMonth > 0 ? roundedResult.canSupplyPerMonth.toFixed(1) : 'Н/Д'], // ДОБАВЛЕНО
         ["---", "---", "---"],
 
         // ЖВО

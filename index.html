@@ -318,6 +318,28 @@
             color: #7f8c8d;
             font-style: italic;
         }
+
+        /* НОВЫЙ СТИЛЬ: для выравнивания таблиц расчета */
+        .calculation-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 20px;
+            align-items: flex-start; /* Убеждаемся, что контент в колонках начинается с одного уровня */
+        }
+
+        .status-block-wrapper {
+            /* Фиксируем минимальную высоту для компенсации разного количества текста в блоках статуса */
+            min-height: 80px;
+            display: flex;
+            flex-direction: column;
+            justify-content: flex-start;
+            margin-bottom: 10px;
+        }
+
+        .metric-status {
+            margin: 2px 0;
+        }
+
     </style>
 </head>
 
