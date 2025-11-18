@@ -344,8 +344,7 @@ function updatePatientMetrics() {
  * @param {object} product - Объект продукта из базы.
  * @param {string} concentrationType - 'ordinary' или 'hyper'.
  * @param {number} numMeals - Количество приемов пищи в сутки.
- * @param {number} totalFluidNeedMl - Общая суточная потребность в жидкости (ЖВО).
- * @param {number | null} scoopsOverride - Общее количество ложек для расчета (для округления), или null для точного расчета.
+ * @param {number | null} scoopsOverride - Количество ложек НА ОДИН ПРИЕМ (для округления), или null для точного расчета.
  * @returns {object} Объект с результатами расчета.
  */
 function performRationCalculation(totalDailyNeedKcal, product, concentrationType, numMeals, scoopsOverride = null) {
@@ -366,7 +365,7 @@ function performRationCalculation(totalDailyNeedKcal, product, concentrationType
         waterPerServing = waterBase;
     }
 
-    // Объем порции: Объем воды + Объем порошка (принимаем 1г порошка = 1мл)
+    // Объем порции: Объем воды + Объем порошка (принимаем 1г порошка ~ 1мл)
     const powderWeightPerServing = scoopsPerServing * scoopWeight;
     const volumePerServing = waterPerServing + powderWeightPerServing;
 
@@ -377,16 +376,17 @@ function performRationCalculation(totalDailyNeedKcal, product, concentrationType
     // 2. Расчет суточных потребностей (на основе ккал)
 
     let totalVolumeMl, requiredPowderGrams, requiredPowderScoops, requiredWaterMl, totalCalculatedKcal;
+    let scoopsPerMeal; // Ложек на один прием
 
     if (scoopsOverride !== null) {
-        // --- УПРОЩЕННЫЙ РАСЧЕТ (С ОКРУГЛЕНИЕМ ЛОЖЕК) ---
-        requiredPowderScoops = scoopsOverride;
+        // --- УПРОЩЕННЫЙ РАСЧЕТ (С ОКРУГЛЕНИЕМ ЛОЖЕК НА ПРИЕМ) ---
+        scoopsPerMeal = scoopsOverride; // scoopsOverride - округленное количество ложек на прием
+        requiredPowderScoops = scoopsPerMeal * numMeals;
         requiredPowderGrams = requiredPowderScoops * scoopWeight;
 
-        // Вода рассчитывается исходя из общего количества ложек и разведения
-        // Общее количество порций: requiredPowderScoops / scoopsPerServing
-        const totalServings = requiredPowderScoops / scoopsPerServing;
-        requiredWaterMl = totalServings * waterPerServing;
+        // Расчет воды: (Общее количество ложек / Ложек на порцию) * Вода на порцию
+        const totalServingsBase = requiredPowderScoops / scoopsPerServing;
+        requiredWaterMl = totalServingsBase * waterPerServing;
 
         totalVolumeMl = requiredWaterMl + requiredPowderGrams;
 
@@ -397,11 +397,14 @@ function performRationCalculation(totalDailyNeedKcal, product, concentrationType
         totalVolumeMl = Math.round(totalDailyNeedKcal / kcalPerMl);
 
         // Расчет требуемого количества порошка: (Общий объем / Объем порции) * Вес порошка в порции
-        requiredPowderGrams = (totalVolumeMl / volumePerServing) * powderWeightPerServing;
+        const requiredPowderVolume = totalVolumeMl / (volumePerServing / powderWeightPerServing);
+        requiredPowderGrams = requiredPowderVolume;
         requiredPowderScoops = requiredPowderGrams / scoopWeight;
 
         requiredWaterMl = totalVolumeMl - requiredPowderGrams;
         totalCalculatedKcal = totalDailyNeedKcal; // По определению
+
+        scoopsPerMeal = requiredPowderScoops / numMeals; // Расчет ложек на прием
     }
 
     // 3. Расчет состава (БЖУ)
@@ -412,7 +415,6 @@ function performRationCalculation(totalDailyNeedKcal, product, concentrationType
     const proteinKcal = Math.round(proteinDailyGrams * 4);
     const fatKcal = Math.round(fatDailyGrams * 9);
     const carbKcal = Math.round(carbDailyGrams * 4);
-    const totalCalculatedKcalRecalculated = proteinKcal + fatKcal + carbKcal; // для контроля
 
     return {
         mealsPerDay: numMeals,
@@ -422,7 +424,7 @@ function performRationCalculation(totalDailyNeedKcal, product, concentrationType
         requiredPowderScoops: roundToTwo(requiredPowderScoops),
         requiredWaterMl: Math.round(requiredWaterMl),
         volumePerMeal: roundToTwo(totalVolumeMl / numMeals),
-        scoopsPerMeal: roundToTwo(requiredPowderScoops / numMeals),
+        scoopsPerMeal: roundToTwo(scoopsPerMeal),
 
         proteinDailyGrams: roundToTwo(proteinDailyGrams),
         fatDailyGrams: roundToTwo(fatDailyGrams),
@@ -445,6 +447,7 @@ function performRationCalculation(totalDailyNeedKcal, product, concentrationType
  * @param {object} result - Результаты расчета от performRationCalculation.
  * @param {string} title - Заголовок секции.
  * @param {string} subtitle - Подзаголовок с дополнительной информацией.
+ * @param {boolean} isRounded - Флаг, указывающий, что это округленный расчет.
  * @returns {string} HTML-код секции.
  */
 function buildRationTableHTML(result, title, subtitle, isRounded) {
@@ -459,7 +462,7 @@ function buildRationTableHTML(result, title, subtitle, isRounded) {
     if (isRounded) {
         titleHtml = `
             <h4 style="margin-top: 30px;">${title}</h4>
-            <p class="metric-status" style="margin-top: -10px;">
+            <p class="metric-status" style="margin-top: -10px; margin-bottom: 10px;">
                 ${subtitle}<br>
                 <strong>Изменение калоража:</strong> ${caloricChange > 0 ? '+' : ''}${caloricChange.toFixed(0)} ккал. 
                 (${roundToTwo((result.totalCalculatedKcal / dailyNeed) * 100)}% от потребности)
@@ -583,11 +586,12 @@ function calculateRation() {
     const exactResult = performRationCalculation(dailyNeed, selectedProduct, concentrationType, numMeals);
 
 
-    // --- 4. Упрощенный расчет (с округлением ложек) ---
+    // --- 4. Упрощенный расчет (с округлением ложек НА ПРИЕМ) ---
 
-    // Округляем общее количество ложек до ближайшего целого числа
-    const roundedScoops = Math.round(exactResult.requiredPowderScoops);
-    const roundedResult = performRationCalculation(dailyNeed, selectedProduct, concentrationType, numMeals, roundedScoops);
+    // Округляем количество ложек на один прием
+    const roundedScoopsPerMeal = Math.round(exactResult.scoopsPerMeal);
+    // Передаем округленное количество ложек на прием
+    const roundedResult = performRationCalculation(dailyNeed, selectedProduct, concentrationType, numMeals, roundedScoopsPerMeal);
 
 
     // --- 5. Расчет дополнительной жидкости (на основе ТОЧНОГО РАСЧЕТА) ---
@@ -629,17 +633,19 @@ function calculateRation() {
         </div>
     `;
 
-    // Выводим результаты в две секции
+    // Выводим результаты в две секции, оборачивая каждую таблицу в отдельный div для правильного Grid-выравнивания
     rationResultDiv.innerHTML = dilutionInfo +
         '<div class="results-section calculation-section">' +
-        buildRationTableHTML(exactResult, 'Точный расчет рациона', 'Расчет для полного удовлетворения потребности в Ккал', false) +
-        buildRationTableHTML(roundedResult, 'Упрощенный расчет рациона (Округление)', `Расчет с округлением суточной дозы смеси до ${roundedScoops} ложек (ближайшее целое)`, true) +
+        // Точный расчет в отдельном контейнере
+        '<div>' + buildRationTableHTML(exactResult, 'Точный расчет рациона', 'Расчет для полного удовлетворения потребности в Ккал', false) + '</div>' +
+
+        // Упрощенный расчет в отдельном контейнере
+        '<div>' + buildRationTableHTML(roundedResult, 'Упрощенный расчет рациона (Округление)', `Расчет с округлением ложек на прием до ${roundedScoopsPerMeal} шт.`, true) + '</div>' +
         '</div>';
 }
 
-// ... ОСТАЛЬНЫЕ ФУНКЦИИ (initCalculator, loadProductsToSelect, и т.д.)
-// ОСТАВЛЕНЫ БЕЗ ИЗМЕНЕНИЙ, ТАК КАК ОНИ НЕ ТРЕБОВАЛИСЬ
-// *************************************************************************
+// ... ОСТАЛЬНЫЕ ФУНКЦИИ (loadProductsToSelect, initCalculator, initRationListeners, initModal, etc.)
+// ... ОСТАВЛЕНЫ БЕЗ ИЗМЕНЕНИЙ (кроме вышеуказанных правок)
 
 async function loadProductsToSelect() {
     const selectElement = document.getElementById('selectedProduct');
@@ -667,8 +673,6 @@ async function loadProductsToSelect() {
         showError('Ошибка загрузки списка продуктов из Supabase. Проверьте RLS и ключи.');
     }
 }
-
-// --- Инициализация слушателей ---
 
 function initCalculator() {
     const inputs = ['patientWeight', 'patientHeight', 'patientAge', 'patientGender', 'activityFactor'];
@@ -700,12 +704,6 @@ function initRationListeners() {
     if (numMeals) numMeals.addEventListener('input', autoCalculate);
 }
 
-// ... (Остальные функции, включая initProductsSearch, initModal, логику модального окна и CRUD)
-// Здесь для краткости опущены, но в финальном файле они должны быть восстановлены.
-// В данном случае, я предоставлю только те части, которые требуют изменения или являются контекстно значимыми.
-
-// --- ИНИЦИАЛИЗАЦИЯ ИНТЕРФЕЙСА (восстановлена из предыдущего шага) ---
-
 function initModal() {
     const productModal = document.getElementById('productModal');
     const searchMedpitanieBtn = document.getElementById('searchMedpitanieBtn');
@@ -713,7 +711,6 @@ function initModal() {
     const cancelBtn = document.getElementById('cancelBtn');
     const productForm = document.getElementById('productForm');
 
-    // Закрытие модального окна
     function closeModal() {
         productModal.style.display = 'none';
         document.getElementById('errorMessage').textContent = '';
@@ -723,7 +720,6 @@ function initModal() {
     }
     window.closeModal = closeModal;
 
-    // Открытие модального окна
     async function openModal(productId = null) {
         productForm.reset();
         document.getElementById('productId').value = '';
@@ -733,7 +729,6 @@ function initModal() {
 
         document.getElementById('saveProductBtn').disabled = !isAuthenticated;
 
-        // ... (логика заполнения формы для редактирования) ...
         if (productId) {
             const product = await ProductsAPI.getById(productId);
             if (product) {
@@ -773,7 +768,6 @@ function initModal() {
         }
     });
 
-    // Сохранение продукта
     productForm.addEventListener('submit', async (e) => {
         e.preventDefault();
 
@@ -791,6 +785,7 @@ function initModal() {
             waterOrdinary: parseFloat(document.getElementById('productWaterOrdinary').value) || null,
             servingVolume_ordinary: parseFloat(document.getElementById('servingVolume_ordinary').value) || null,
 
+            // Поля гиперкалорического разведения не используются в расчете, но сохраняются в базе
             scoopsHyper: parseFloat(document.getElementById('productScoopsHyper').value) || null,
             waterHyper: parseFloat(document.getElementById('productWaterHyper').value) || null,
             servingVolume_hyper: parseFloat(document.getElementById('servingVolume_hyper').value) || null,
@@ -885,11 +880,11 @@ document.addEventListener('DOMContentLoaded', async () => {
         updateAuthUI(user);
 
         initAuthListeners();
-        initCalculator(); // Инициализирует метрики пациента
-        initRationListeners(); // Инициализирует слушатели для расчета рациона
+        initCalculator();
+        initRationListeners();
         initModal();
 
-        await loadProductsToSelect(); // Загрузка продуктов в Select
+        await loadProductsToSelect();
 
         supabase.auth.onAuthStateChange((event, session) => {
             if (session) {

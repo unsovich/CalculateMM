@@ -136,10 +136,12 @@
             margin-top: 30px;
         }
 
+        /* Исправление съезжания таблиц (Point 2) */
         .calculation-section {
             display: grid;
             grid-template-columns: 1fr 1fr;
             gap: 30px;
+            align-items: start; /* Выравнивание по верхнему краю */
         }
 
         .ration-summary-row {
@@ -357,9 +359,10 @@
             font-weight: bold;
         }
 
+        /* Адаптивность (Point 1 & 2) */
         @media (max-width: 900px) {
             .calculation-section {
-                grid-template-columns: 1fr;
+                grid-template-columns: 1fr; /* На мобильных устройствах - один столбец */
             }
         }
 
@@ -373,6 +376,22 @@
 
             .metrics-row {
                 flex-direction: column;
+            }
+
+            /* Исправление верстки авторизации (Point 1) */
+            .auth-form {
+                flex-direction: column; /* Элементы вертикально */
+                align-items: stretch;
+            }
+
+            .auth-form input {
+                width: 100%;
+                margin-bottom: 5px;
+            }
+
+            .auth-form button {
+                width: 100%;
+                margin-top: 5px;
             }
         }
     </style>
@@ -473,8 +492,8 @@
         <div class="form-group">
             <label for="concentrationType">Тип разведения</label>
             <select id="concentrationType">
-                <option value="ordinary">Обычное (1.0 ккал/мл)</option>
-                <option value="hyper">Гиперкалорическое (1.5 ккал/мл)</option>
+                <option value="ordinary">Обычное разведение (Базовое)</option>
+                <option value="hyper">Гиперкалорическое (в 1,5 раза больше смеси)</option>
             </select>
         </div>
         <div class="form-group">
@@ -542,7 +561,7 @@
 
             <h3>Параметры разведения (на одну порцию)</h3>
 
-            <h4>Обычное разведение (Базовое, 1.0 ккал/мл)</h4>
+            <h4>Обычное разведение (Базовое)</h4>
             <div class="modal-form-grid two-cols">
                 <div class="form-group">
                     <label for="productScoopsOrdinary">Мерных ложек</label>
@@ -558,20 +577,20 @@
                 </div>
             </div>
 
-            <h4>Гиперкалорическое разведение (1.5 ккал/мл) - **ВВОД НЕ ТРЕБУЕТСЯ**</h4>
-            <p class="metric-status">Ложки рассчитываются автоматически (x1.5 от обычного разведения). Эти поля игнорируются при расчете.</p>
+            <h4>Гиперкалорическое разведение (x1.5 смеси)</h4>
+            <p class="metric-status">Параметры разведения рассчитываются автоматически на основе "Обычного разведения" и 1,5-кратного увеличения смеси.</p>
             <div class="modal-form-grid two-cols">
                 <div class="form-group">
-                    <label for="productScoopsHyper">Мерных ложек (Игнорируется)</label>
-                    <input type="number" id="productScoopsHyper" step="0.1" min="0" disabled>
+                    <label for="productScoopsHyper">Мерных ложек (Сохраняется для истории)</label>
+                    <input type="number" id="productScoopsHyper" step="0.1" min="0">
                 </div>
                 <div class="form-group">
-                    <label for="productWaterHyper">Воды (мл) (Игнорируется)</label>
-                    <input type="number" id="productWaterHyper" step="1" min="0" disabled>
+                    <label for="productWaterHyper">Воды (мл) (Сохраняется для истории)</label>
+                    <input type="number" id="productWaterHyper" step="1" min="0">
                 </div>
                 <div class="form-group" style="display: none;">
                     <label for="servingVolume_hyper">Объем готовой порции (мл)</label>
-                    <input type="number" id="servingVolume_hyper" step="1" min="0" disabled>
+                    <input type="number" id="servingVolume_hyper" step="1" min="0">
                 </div>
             </div>
 
