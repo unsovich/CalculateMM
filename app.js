@@ -9,7 +9,7 @@ function escapeHtml(text) {
 
 function showError(message) {
     const errorDiv = document.getElementById('errorMessage');
-    if (errorDiv) { // Добавлена проверка
+    if (errorDiv) {
         errorDiv.textContent = message;
         errorDiv.style.display = 'block';
         errorDiv.className = 'error-message';
@@ -23,7 +23,7 @@ function showError(message) {
 
 function showSuccess(message) {
     const errorDiv = document.getElementById('errorMessage');
-    if (errorDiv) { // Добавлена проверка
+    if (errorDiv) {
         errorDiv.textContent = message;
         errorDiv.style.display = 'block';
         errorDiv.className = 'success-message';
@@ -520,7 +520,8 @@ function runCalculation(product, dailyNeed, feedingsPerDay, concentrationType, s
     const totalMixWeightGramsRounded = roundedScoopsTotal * productScoopWeight;
     const totalKcalRounded = kcalPerScoop * roundedScoopsTotal;
     const totalProteinGramsRounded = proteinPerScoop * roundedScoopsTotal;
-    const totalFatGramsRounded = fatPerScoop * roundedCarbsPerScoop; // FIX: Should be roundedScoopsTotal, not roundedCarbsPerScoop
+    // ИСПРАВЛЕНО: Заменено 'roundedCarbsPerScoop' на 'roundedScoopsTotal'
+    const totalFatGramsRounded = fatPerScoop * roundedScoopsTotal;
     const totalCarbsGramsRounded = carbsPerScoop * roundedScoopsTotal;
 
     const daysSupplyRounded = (packageAmountCheck && totalMixWeightGramsRounded > 0)
@@ -538,7 +539,8 @@ function runCalculation(product, dailyNeed, feedingsPerDay, concentrationType, s
         feedingsPerDay: feedingsPerDay,
         totalCalculatedKcal: totalKcalRounded,
         totalProteinGrams: totalProteinGramsRounded,
-        totalFatGrams: fatPerScoop * roundedScoopsTotal, // FIX APPLIED HERE
+        // ИСПРАВЛЕНО: Теперь используем корректно рассчитанную переменную
+        totalFatGrams: totalFatGramsRounded,
         totalCarbsGrams: totalCarbsGramsRounded,
         totalMixWeightGrams: totalMixWeightGramsRounded,
         requiredVolumeMl: roundedVolumeMl,
@@ -552,7 +554,8 @@ function runCalculation(product, dailyNeed, feedingsPerDay, concentrationType, s
         volumePerMealMl: roundedVolumeMl / feedingsPerDay,
         kcalPerMeal: totalKcalRounded / feedingsPerDay,
         proteinPerMeal: totalProteinGramsRounded / feedingsPerDay,
-        fatPerMeal: (fatPerScoop * roundedScoopsTotal) / feedingsPerDay, // FIX APPLIED HERE
+        // ИСПРАВЛЕНО: Теперь используем корректно рассчитанную переменную
+        fatPerMeal: totalFatGramsRounded / feedingsPerDay,
         carbsPerMeal: totalCarbsGramsRounded / feedingsPerDay,
     };
 
@@ -1040,7 +1043,7 @@ function exportToExcel() {
         ["Общая калорийность, ккал", safeToFixed(exactResult.totalCalculatedKcal, 0), safeToFixed(roundedResult.totalCalculatedKcal, 0)],
         ["Общее количество белка, г", safeToFixed(exactResult.totalProteinGrams, 1), safeToFixed(roundedResult.totalProteinGrams, 1)],
         ["Общее количество жиров, г", safeToFixed(exactResult.totalFatGrams, 1), safeToFixed(roundedResult.totalFatGrams, 1)],
-        ["Общее количество углеводов, г", safeToFixed(exactResult.carbsPerMeal, 1), safeToFixed(roundedResult.carbsPerMeal, 1)],
+        ["Общее количество углеводов, г", safeToFixed(exactResult.totalCarbsGrams, 1), safeToFixed(roundedResult.totalCarbsGrams, 1)],
         ["---", "---", "---"],
 
         // РАСХОД
@@ -1090,7 +1093,7 @@ document.addEventListener('DOMContentLoaded', async () => {
         initAuthListeners();
         initCalculator();
         initRationListeners();
-        initModal(); // <-- Исправленная функция, содержащая проверки
+        initModal();
 
         // 4. Загрузка продуктов
         await loadProductsToSelect();
