@@ -121,11 +121,16 @@ function updateAuthUI(user) {
 
 async function signUpUser(email, password) {
     try {
+        // Проверка наличия пользователя, чтобы избежать лишних ошибок.
+        // Этот функционал может быть недоступен для анонимного ключа, поэтому его можно убрать,
+        // или использовать более простой вариант, если Supabase не поддерживает.
+        /*
         const { data: { user: existingUser } } = await supabase.auth.admin.getUserByEmail(email);
         if (existingUser && existingUser.confirmed_at) {
             showError('Ошибка: Пользователь с таким email уже существует и подтвержден.');
             return;
         }
+        */
 
         const { error } = await supabase.auth.signUp({ email, password });
         if (error) throw new Error(error.message);
@@ -162,7 +167,6 @@ async function signOutUser() {
     }
 }
 
-// ИСПРАВЛЕНО: Добавлены проверки на null для элементов DOM.
 function initAuthListeners() {
     const authForm = document.getElementById('authForm');
     const signUpBtn = document.getElementById('signUpBtn');
@@ -383,13 +387,10 @@ function updatePatientMetrics() {
     calculateRation();
 }
 
-// ... (runCalculation, buildRationTableHTML, calculateRation - без изменений) ...
-
 /**
  * Основная функция расчета рациона.
  */
 function runCalculation(product, dailyNeed, feedingsPerDay, concentrationType, scoopRounding) {
-    // ... (весь код runCalculation) ...
     const productCalories = product.calories || 0;
     const productScoopWeight = product.scoopWeight || 0;
     const productProteins = product.proteins || 0;
@@ -519,9 +520,9 @@ function runCalculation(product, dailyNeed, feedingsPerDay, concentrationType, s
 
     const totalMixWeightGramsRounded = roundedScoopsTotal * productScoopWeight;
     const totalKcalRounded = kcalPerScoop * roundedScoopsTotal;
-    const totalProteinGramsRounded = proteinPerScoop * roundedScoopsTotal;
 
-    // ⬇️ ИСПРАВЛЕНИЕ ОШИБКИ: Заменено 'roundedCarbsPerScoop' на 'roundedScoopsTotal'
+    // ✅ ИСПРАВЛЕНИЕ: Теперь все макронутриенты рассчитываются от 'roundedScoopsTotal'
+    const totalProteinGramsRounded = proteinPerScoop * roundedScoopsTotal;
     const totalFatGramsRounded = fatPerScoop * roundedScoopsTotal;
     const totalCarbsGramsRounded = carbsPerScoop * roundedScoopsTotal;
 
@@ -540,7 +541,6 @@ function runCalculation(product, dailyNeed, feedingsPerDay, concentrationType, s
         feedingsPerDay: feedingsPerDay,
         totalCalculatedKcal: totalKcalRounded,
         totalProteinGrams: totalProteinGramsRounded,
-        // ИСПРАВЛЕНО: Теперь используем корректно рассчитанную переменную
         totalFatGrams: totalFatGramsRounded,
         totalCarbsGrams: totalCarbsGramsRounded,
         totalMixWeightGrams: totalMixWeightGramsRounded,
@@ -555,7 +555,6 @@ function runCalculation(product, dailyNeed, feedingsPerDay, concentrationType, s
         volumePerMealMl: roundedVolumeMl / feedingsPerDay,
         kcalPerMeal: totalKcalRounded / feedingsPerDay,
         proteinPerMeal: totalProteinGramsRounded / feedingsPerDay,
-        // ИСПРАВЛЕНО: Теперь используем корректно рассчитанную переменную
         fatPerMeal: totalFatGramsRounded / feedingsPerDay,
         carbsPerMeal: totalCarbsGramsRounded / feedingsPerDay,
     };
@@ -878,7 +877,6 @@ function closeModal() {
     }
 }
 
-// ИСПРАВЛЕНО: Добавлены проверки на null для всех элементов DOM, на которые вешается addEventListener
 function initModal() {
     const closeModalBtn = document.getElementById('closeModalBtn');
     const cancelBtn = document.getElementById('cancelBtn');
