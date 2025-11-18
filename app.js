@@ -383,33 +383,70 @@ function runCalculation(product, dailyNeed, feedingsPerDay, concentrationType, s
     // 1. Определение параметров разведения
     const isOrdinary = concentrationType === 'ordinary';
 
-    // Используем новые имена полей базы данных
-    const scoopsKey = isOrdinary ? 'scoopsOrdinary' : 'scoopsHyper';
-    const waterKey = isOrdinary ? 'waterOrdinary' : 'waterHyper';
-    const volumeKey = isOrdinary ? 'servingVolume_ordinary' : 'servingVolume_hyper';
-
-    const scoopsPerServing = product[scoopsKey] || 0; // Ложек на базовую порцию
-    const waterPerServing = product[waterKey] || 0;   // Воды на базовую порцию
-    const servingVolume = product[volumeKey] || 0;    // Объем готовой порции
-
-    // Базовые метрики для одной ложки
+    // Базовые метрики для одной ложки (Ккал, Б, Ж, У на 1 ложку)
     const kcalPerScoop = (product.calories * product.scoopWeight) / 100;
     const proteinPerScoop = (product.proteins * product.scoopWeight) / 100;
-    // --- НОВЫЕ РАСЧЕТЫ: ЖИРЫ И УГЛЕВОДЫ НА ЛОЖКУ ---
     const fatPerScoop = (product.fats * product.scoopWeight) / 100;
     const carbsPerScoop = (product.carbs * product.scoopWeight) / 100;
 
-    // Проверка, что продукт настроен для выбранной концентрации
-    if (servingVolume === 0 || scoopsPerServing === 0) {
-        throw new Error(`Продукт "${product.name}" не настроен для выбранной концентрации (${concentrationType}). Не заданы Ложки на порцию или Объем готовой порции.`);
+    let scoopsPerServing, waterPerServing, servingVolume, baseServingDescription;
+
+    if (isOrdinary) {
+        // --- ОБЫЧНОЕ РАЗВЕДЕНИЕ (ОСНОВАНО НА ДАННЫХ ПРОДУКТА) ---
+        scoopsPerServing = product.scoopsOrdinary || 0;
+        waterPerServing = product.waterOrdinary || 0;
+        servingVolume = product.servingVolume_ordinary || 0;
+        baseServingDescription = `${scoopsPerServing} ложек на ${waterPerServing} мл воды`;
+
+        // Проверка, что продукт настроен
+        if (servingVolume === 0 || scoopsPerServing === 0) {
+            throw new Error(`Продукт "${product.name}" не настроен для обычного разведения. Проверьте "Ложки на порцию" и "Объем готового раствора".`);
+        }
+
+    } else { // Hypercaloric
+        let useHyperParams = (product.scoopsHyper > 0 && product.waterHyper > 0 && product.servingVolume_hyper > 0);
+
+        if (useHyperParams) {
+            // --- ГИПЕРКАЛОРИЧЕСКОЕ РАЗВЕДЕНИЕ (ИЗ БАЗЫ) ---
+            scoopsPerServing = product.scoopsHyper || 0;
+            waterPerServing = product.waterHyper || 0;
+            servingVolume = product.servingVolume_hyper || 0;
+            baseServingDescription = `${scoopsPerServing} ложек на ${waterPerServing} мл воды`;
+
+        } else {
+            // --- ГИПЕРКАЛОРИЧЕСКОЕ РАЗВЕДЕНИЕ (ФОЛЛБЭК 1.5x) ---
+
+            // 1. Проверяем наличие обычного разведения для фоллбэка
+            if (product.scoopsOrdinary <= 0 || product.waterOrdinary <= 0 || product.servingVolume_ordinary <= 0) {
+                throw new Error(`Продукт "${product.name}" не настроен для гиперкалорического разведения и не имеет данных для фоллбэка (обычное разведение).`);
+            }
+
+            // 2. Увеличиваем сухую смесь в 1.5 раза
+            scoopsPerServing = roundToTwo(product.scoopsOrdinary * 1.5);
+
+            // 3. Воду оставляем прежней
+            waterPerServing = product.waterOrdinary;
+
+            // 4. Расчет нового объема готового раствора
+            // Предполагаем, что объем порошка на ложку постоянен: (Объем об.р-ра - Вода об.р-ра) / Ложки об.р-ра
+            const powderVolumePerScoop = (product.servingVolume_ordinary - product.waterOrdinary) / product.scoopsOrdinary;
+            servingVolume = (scoopsPerServing * powderVolumePerScoop) + waterPerServing;
+
+            baseServingDescription = `${scoopsPerServing.toFixed(1)} ложек на ${waterPerServing} мл воды (1.5x фоллбэк)`;
+
+            if (servingVolume === 0 || scoopsPerServing === 0) {
+                throw new Error('Ошибка расчета параметров гиперкалорического разведения (фоллбэк). Проверьте данные обычного разведения.');
+            }
+        }
     }
+
 
     // Ккал в готовой порции (ScoopsPerServing ложек)
     const kcalPerServing = kcalPerScoop * scoopsPerServing;
 
     // Концентрация (Ккал/мл)
     const concentration = kcalPerServing / servingVolume;
-    if (concentration === 0 || isNaN(concentration)) {
+    if (concentration === 0 || isNaN(concentration) || !isFinite(concentration)) {
         throw new Error('Ошибка расчета концентрации. Проверьте данные продукта (Ккал/100г, Вес ложки, Объем порции).');
     }
 
@@ -420,9 +457,6 @@ function runCalculation(product, dailyNeed, feedingsPerDay, concentrationType, s
 
     // Общее количество ложек в сутки (шт.)
     const requiredScoopsTotal = (requiredVolumeMl / servingVolume) * scoopsPerServing;
-
-    // Ложек на один прием (шт./прием)
-    const requiredScoopsPerMeal = requiredScoopsTotal / feedingsPerDay;
 
     // Общее количество воды в рационе
     const totalWaterInRationExact = (requiredScoopsTotal / scoopsPerServing) * waterPerServing;
@@ -448,7 +482,7 @@ function runCalculation(product, dailyNeed, feedingsPerDay, concentrationType, s
         kcalPerMl: concentration,
         scoopsPerServing,
         waterPerServing,
-        baseServingDescription: `${scoopsPerServing} ложек на ${waterPerServing} мл воды`,
+        baseServingDescription: baseServingDescription,
         feedingsPerDay: feedingsPerDay, // Добавлено
 
         // Суточные итоги
@@ -464,7 +498,7 @@ function runCalculation(product, dailyNeed, feedingsPerDay, concentrationType, s
         daysSupply: daysSupplyExact, // Добавлено
 
         // На один прием
-        requiredScoopsPerMeal: requiredScoopsPerMeal,
+        requiredScoopsPerMeal: requiredScoopsTotal / feedingsPerDay,
         requiredWaterPerMeal: requiredWaterPerMeal,
         volumePerMealMl: requiredVolumeMl / feedingsPerDay,
         kcalPerMeal: totalKcalExact / feedingsPerDay,
@@ -477,11 +511,11 @@ function runCalculation(product, dailyNeed, feedingsPerDay, concentrationType, s
     // 3. Расчет Упрощенного рациона (roundedResult)
 
     // Округление ложек на прием
-    let roundedScoopsPerMeal = requiredScoopsPerMeal;
+    let roundedScoopsPerMeal = exactResult.requiredScoopsPerMeal;
     if (scoopRounding > 0) {
-        roundedScoopsPerMeal = Math.round(requiredScoopsPerMeal / scoopRounding) * scoopRounding;
+        roundedScoopsPerMeal = Math.round(exactResult.requiredScoopsPerMeal / scoopRounding) * scoopRounding;
         // Минимальное значение = 1 шаг округления, если потребность в ложках не нулевая
-        if (roundedScoopsPerMeal < scoopRounding && requiredScoopsPerMeal > 0) roundedScoopsPerMeal = scoopRounding;
+        if (roundedScoopsPerMeal < scoopRounding && exactResult.requiredScoopsPerMeal > 0) roundedScoopsPerMeal = scoopRounding;
     }
 
 
@@ -521,7 +555,7 @@ function runCalculation(product, dailyNeed, feedingsPerDay, concentrationType, s
         kcalPerMl: concentration,
         scoopsPerServing,
         waterPerServing,
-        baseServingDescription: `${scoopsPerServing} ложек на ${waterPerServing} мл воды`,
+        baseServingDescription: baseServingDescription,
         feedingsPerDay: feedingsPerDay, // Добавлено
 
         // Суточные итоги
@@ -689,40 +723,12 @@ function calculateRation() {
                 scoopRounding
             );
 
-            // --- 4. Расчет дополнительной жидкости ---
-            // Расчет для Точного рациона
-            const totalWaterInRationExact = exactResult.requiredWaterMl;
-            const additionalFluidExact = Math.max(0, totalFluidNeedMl - totalWaterInRationExact);
 
-            // Расчет для Округленного рациона
-            const totalWaterInRationRounded = roundedResult.requiredWaterMl;
-            const additionalFluidRounded = Math.max(0, totalFluidNeedMl - totalWaterInRationRounded);
-
-            // 5. Формирование HTML для дополнительной жидкости
-            additionalFluidResultDiv.innerHTML = `
-                <div class="results-section">
-                    <h4>💧 Расчет дополнительной жидкости</h4>
-                    <div class="patient-metrics">
-                        <div class="result-card">
-                            <h5>Для Точного Рациона</h5>
-                            <p class="metric-value">${additionalFluidExact.toFixed(0)} мл</p>
-                            <p class="metric-status">ЖВО (${totalFluidNeedMl.toFixed(0)} мл) - Вода в смеси (${totalWaterInRationExact.toFixed(0)} мл)</p>
-                        </div>
-                        <div class="result-card">
-                            <h5>Для Округленного Рациона</h5>
-                            <p class="metric-value">${additionalFluidRounded.toFixed(0)} мл</p>
-                            <p class="metric-status">ЖВО (${totalFluidNeedMl.toFixed(0)} мл) - Вода в смеси (${totalWaterInRationRounded.toFixed(0)} мл)</p>
-                        </div>
-                    </div>
-                </div>
-            `;
-            additionalFluidResultDiv.style.display = 'block';
-
-            // --- 6. Вывод результатов рациона ---
+            // --- 1. Вывод результатов рациона ---
 
             const concentrationName = concentrationType === 'ordinary'
-                ? 'Обычное (1 Ккал/мл)'
-                : 'Гиперкалорическое (1.5 Ккал/мл)';
+                ? 'Обычное разведение' // Убрано "(1 Ккал/мл)"
+                : 'Гиперкалорическое разведение';
 
             // Формируем блок с общей информацией о разведении
             const dilutionInfo = `
@@ -732,8 +738,7 @@ function calculateRation() {
                         <strong>Тип разведения:</strong> ${concentrationName}.
                         <strong>Концентрация:</strong> ${exactResult.kcalPerMl.toFixed(2)} ккал/мл.
                         <strong>Базовая порция:</strong> ${exactResult.baseServingDescription}.
-                        <strong>Белок на 1000 ккал:</strong> ${exactResult.totalProteinGrams / (exactResult.totalCalculatedKcal / 1000) || 0.0} г.
-                    </p>
+                        </p>
                 </div>
             `;
 
@@ -780,6 +785,38 @@ function calculateRation() {
                 '</div>';
 
             rationResultDiv.style.display = 'block';
+
+            // --- 2. Расчет и вывод дополнительной жидкости (перенесен в конец) ---
+
+            // Расчет для Точного рациона
+            const totalWaterInRationExact = exactResult.requiredWaterMl;
+            const additionalFluidExact = Math.max(0, totalFluidNeedMl - totalWaterInRationExact);
+
+            // Расчет для Округленного рациона
+            const totalWaterInRationRounded = roundedResult.requiredWaterMl;
+            const additionalFluidRounded = Math.max(0, totalFluidNeedMl - totalWaterInRationRounded);
+
+            // Формирование HTML для дополнительной жидкости
+            additionalFluidResultDiv.innerHTML = `
+                <div class="results-section fluid-section">
+                    <h4>💧 Расчет дополнительной жидкости</h4>
+                    <div class="patient-metrics">
+                        <div class="result-card">
+                            <h5>Для Точного Рациона</h5>
+                            <p class="metric-value">${additionalFluidExact.toFixed(0)} мл</p>
+                            <p class="metric-status">ЖВО (${totalFluidNeedMl.toFixed(0)} мл) - Вода в смеси (${totalWaterInRationExact.toFixed(0)} мл)</p>
+                        </div>
+                        <div class="result-card">
+                            <h5>Для Округленного Рациона</h5>
+                            <p class="metric-value">${additionalFluidRounded.toFixed(0)} мл</p>
+                            <p class="metric-status">ЖВО (${totalFluidNeedMl.toFixed(0)} мл) - Вода в смеси (${totalWaterInRationRounded.toFixed(0)} мл)</p>
+                        </div>
+                    </div>
+                </div>
+            `;
+            additionalFluidResultDiv.style.display = 'block'; // Показываем в конце
+
+
             exportBtn.style.display = 'inline-block';
             window.lastCalculationResult = { exactResult, roundedResult, selectedProduct, dailyNeed, feedingsPerDay, totalFluidNeedMl };
 
