@@ -466,7 +466,7 @@ function buildRationTableHTML(result) {
             </thead>
             <tbody>
                 <tr>
-                    <td data-label="Количество приемов (шт/сутки)">Количество приемов (шт/сутки)</td>
+                    <td data-label="Количество приемов (шт/сутки)">Количество приемов в сутки</td>
                     <td class="highlight">${result.mealsPerDay}</td>
                 </tr>
                 <tr>
@@ -621,9 +621,9 @@ function calculateRation() {
         </p>
     `;
 
-    // Выводим результаты в две секции
+    // Выводим результаты в две секции (ИЗМЕНЕНИЕ: Класс для контейнера)
     rationResultDiv.innerHTML = dilutionInfo +
-        '<div class="results-section calculation-section">' +
+        '<div class="calculation-grid">' + // ИСПОЛЬЗУЕМ НОВЫЙ КЛАСС
         // Колонка 1: Точный расчет
         '<div>' +
         '<h4>Точный расчет рациона</h4>' +
