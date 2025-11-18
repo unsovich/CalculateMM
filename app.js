@@ -511,6 +511,7 @@ function runCalculation(product, dailyNeed, feedingsPerDay, concentrationType, s
     const roundedScoopsTotal = roundedScoopsPerMeal * feedingsPerDay;
     let requiredWaterMl = (roundedScoopsTotal / scoopsPerServing) * waterPerServing;
 
+    // Округление воды до кратного 10
     if (requiredWaterMl % 10 !== 0) {
         requiredWaterMl = Math.round(requiredWaterMl / 10) * 10;
     }
@@ -521,7 +522,7 @@ function runCalculation(product, dailyNeed, feedingsPerDay, concentrationType, s
     const totalMixWeightGramsRounded = roundedScoopsTotal * productScoopWeight;
     const totalKcalRounded = kcalPerScoop * roundedScoopsTotal;
 
-    // ✅ ИСПРАВЛЕНИЕ: Теперь все макронутриенты рассчитываются от 'roundedScoopsTotal'
+    // Расчет макронутриентов на основе округленного общего количества ложек
     const totalProteinGramsRounded = proteinPerScoop * roundedScoopsTotal;
     const totalFatGramsRounded = fatPerScoop * roundedScoopsTotal;
     const totalCarbsGramsRounded = carbsPerScoop * roundedScoopsTotal;
@@ -679,37 +680,17 @@ async function calculateRation() {
             </div>
         `;
 
-        const caloricChange = roundedResult.totalCalculatedKcal - dailyNeed;
-        const waterRoundingInfo = (roundedResult.requiredWaterMl % 10 !== 0) ? '' : `Вода округлена до ${safeToFixed(roundedResult.requiredWaterMl, 0)} мл (кратное 10).`;
-
-        const exactStatus = `
-            <div class="status-block-wrapper">
-                <p class="metric-status status-subtext">Расчет для полного удовлетворения потребности в Ккал</p>
-                <p class="metric-status status-caloric-change empty-placeholder">&nbsp;</p>
-            </div>
-        `;
-
-        const roundedStatus = `
-            <div class="status-block-wrapper">
-                <p class="metric-status status-subtext">Расчет с округлением ложек на прием до ${safeToFixed(roundedScoopsPerMeal, 2)} шт. ${waterRoundingInfo}</p>
-                <p class="metric-status status-caloric-change">
-                    <strong>Изменение калоража:</strong> ${caloricChange > 0 ? '+' : ''}${safeToFixed(caloricChange, 0)} ккал.
-                    (${roundToTwo((roundedResult.totalCalculatedKcal / dailyNeed) * 100)}% от потребности)
-                </p>
-            </div>
-        `;
+        // УДАЛЕНЫ БЛОКИ exactStatus и roundedStatus
 
         if (rationResultDiv) {
             rationResultDiv.innerHTML = dilutionInfo +
                 '<div class="calculation-section">' +
                 '<div>' +
                 '<h4>Точный расчет рациона</h4>' +
-                exactStatus +
                 buildRationTableHTML(exactResult) +
                 '</div>' +
                 '<div>' +
                 '<h4>Упрощенный расчет рациона (Округление)</h4>' +
-                roundedStatus +
                 buildRationTableHTML(roundedResult) +
                 '</div>' +
                 '</div>';
