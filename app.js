@@ -621,9 +621,9 @@ function calculateRation() {
         </p>
     `;
 
-    // Выводим результаты в две секции (ИЗМЕНЕНИЕ: Класс для контейнера)
+    // Выводим результаты в две секции
     rationResultDiv.innerHTML = dilutionInfo +
-        '<div class="calculation-grid">' + // ИСПОЛЬЗУЕМ НОВЫЙ КЛАСС
+        '<div class="results-section calculation-section">' +
         // Колонка 1: Точный расчет
         '<div>' +
         '<h4>Точный расчет рациона</h4>' +

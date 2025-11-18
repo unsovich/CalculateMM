@@ -139,22 +139,21 @@
         }
 
         /* Секции расчета рациона */
-        /* ИЗМЕНЕНИЕ: Новый класс для grid-контейнера */
-        .calculation-grid {
+        .calculation-section {
             display: grid;
             grid-template-columns: 1fr 1fr;
             gap: 20px;
-            align-items: start;
+            align-items: start; /* Важно для выравнивания таблиц */
         }
 
-        .calculation-grid h4 {
+        .calculation-section h4 {
             margin-top: 0;
             margin-bottom: 5px;
         }
 
         /* Стиль для выравнивания таблиц - компенсирует высоту */
         .status-caloric-change {
-            min-height: 40px; /* ИЗМЕНЕНИЕ: Увеличен min-height для лучшего выравнивания */
+            min-height: 20px; /* Достаточно для одной строки текста */
             margin-bottom: 10px;
             display: block;
             font-size: 0.9em;
@@ -179,7 +178,7 @@
 
 
         @media (max-width: 900px) {
-            .calculation-grid { /* ИЗМЕНЕНИЕ: Новый класс */
+            .calculation-section {
                 grid-template-columns: 1fr;
             }
             .results-table thead {
