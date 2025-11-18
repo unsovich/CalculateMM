@@ -444,26 +444,22 @@ function performRationCalculation(totalDailyNeedKcal, product, concentrationType
 
 /**
  * Формирует HTML-таблицу для результатов расчета.
+ * Заголовки (h4 и основной p.metric-status) теперь формируются в calculateRation()
+ * для правильного выравнивания.
  * @param {object} result - Результаты расчета от performRationCalculation.
- * @param {string} title - Заголовок секции.
- * @param {string} subtitle - Подзаголовок с дополнительной информацией.
  * @param {boolean} isRounded - Флаг, указывающий, что это округленный расчет.
- * @returns {string} HTML-код секции.
+ * @returns {string} HTML-код таблицы.
  */
-function buildRationTableHTML(result, title, subtitle, isRounded) {
+function buildRationTableHTML(result, isRounded) {
     const dailyNeed = result.totalDailyNeedKcal;
     const caloricChange = result.totalCalculatedKcal - dailyNeed;
 
-    let titleHtml = `
-        <h4>${title}</h4>
-        <p class="metric-status" style="margin-top: -10px;">${subtitle}</p>
-    `;
+    let subtitleHtml = '';
 
+    // Дополнительный подзаголовок с изменением калоража остаётся внутри для округленного расчета
     if (isRounded) {
-        titleHtml = `
-            <h4 style="margin-top: 30px;">${title}</h4>
-            <p class="metric-status" style="margin-top: -10px; margin-bottom: 10px;">
-                ${subtitle}<br>
+        subtitleHtml = `
+            <p class="metric-status" style="margin-bottom: 10px;">
                 <strong>Изменение калоража:</strong> ${caloricChange > 0 ? '+' : ''}${caloricChange.toFixed(0)} ккал. 
                 (${roundToTwo((result.totalCalculatedKcal / dailyNeed) * 100)}% от потребности)
             </p>
@@ -471,7 +467,7 @@ function buildRationTableHTML(result, title, subtitle, isRounded) {
     }
 
     return `
-        ${titleHtml}
+        ${subtitleHtml}
         
         <table class="results-table">
             <thead>
@@ -636,16 +632,27 @@ function calculateRation() {
     // Выводим результаты в две секции, оборачивая каждую таблицу в отдельный div для правильного Grid-выравнивания
     rationResultDiv.innerHTML = dilutionInfo +
         '<div class="results-section calculation-section">' +
-        // Точный расчет в отдельном контейнере
-        '<div>' + buildRationTableHTML(exactResult, 'Точный расчет рациона', 'Расчет для полного удовлетворения потребности в Ккал', false) + '</div>' +
+        // Колонка 1: Точный расчет
+        '<div>' +
+        // Заголовок и подзаголовок вынесены для выравнивания
+        '<h4>Точный расчет рациона</h4>' +
+        '<p class="metric-status" style="margin-top: -10px;">Расчет для полного удовлетворения потребности в Ккал</p>' +
+        buildRationTableHTML(exactResult, false) + // Только таблица
+        '</div>' +
 
-        // Упрощенный расчет в отдельном контейнере
-        '<div>' + buildRationTableHTML(roundedResult, 'Упрощенный расчет рациона (Округление)', `Расчет с округлением ложек на прием до ${roundedScoopsPerMeal} шт.`, true) + '</div>' +
+        // Колонка 2: Упрощенный расчет
+        '<div>' +
+        // Заголовок и подзаголовок вынесены для выравнивания
+        '<h4>Упрощенный расчет рациона (Округление)</h4>' +
+        `<p class="metric-status" style="margin-top: -10px;">Расчет с округлением ложек на прием до ${roundedScoopsPerMeal} шт.</p>` +
+        buildRationTableHTML(roundedResult, true) + // Только таблица (+ статус изменения калоража внутри)
+        '</div>' +
         '</div>';
 }
 
-// ... ОСТАЛЬНЫЕ ФУНКЦИИ (loadProductsToSelect, initCalculator, initRationListeners, initModal, etc.)
-// ... ОСТАВЛЕНЫ БЕЗ ИЗМЕНЕНИЙ (кроме вышеуказанных правок)
+// ... ОСТАЛЬНЫЕ ФУНКЦИИ (loadProductsToSelect, initCalculator, initRationListeners, initModal, loadProductsTable, editProduct, deleteProduct, initAuthListeners, document.addEventListener)
+// ... ОСТАВЛЕНЫ БЕЗ ИЗМЕНЕНИЙ
+// ... (полный код app.js, включая все функции аутентификации, API и инициализации)
 
 async function loadProductsToSelect() {
     const selectElement = document.getElementById('selectedProduct');
