@@ -444,6 +444,7 @@ function performRationCalculation(totalDailyNeedKcal, product, concentrationType
 
 /**
  * Формирует HTML-таблицу для результатов расчета.
+ * ОБНОВЛЕНО: Удалена колонка с единицами измерения.
  * @param {object} result - Результаты расчета от performRationCalculation.
  * @returns {string} HTML-код таблицы.
  */
@@ -452,77 +453,64 @@ function buildRationTableHTML(result) {
         <table class="results-table">
             <thead>
                 <tr>
-                    <th>Параметр</th>
+                    <th>Параметр (Ед. изм.)</th> 
                     <th>Значение</th>
-                    <th>Единица</th>
                 </tr>
             </thead>
             <tbody>
                 <tr>
-                    <td data-label="Количество приемов">Количество приемов пищи</td>
+                    <td data-label="Количество приемов (шт/сутки)">Количество приемов пищи (шт/сутки)</td>
                     <td class="highlight">${result.mealsPerDay}</td>
-                    <td>шт/сутки</td>
                 </tr>
                 <tr>
-                    <td data-label="Объем на прием">Объем готовой смеси на прием</td>
+                    <td data-label="Объем на прием (мл)">Объем готовой смеси на прием (мл)</td>
                     <td>${result.volumePerMeal}</td>
-                    <td>мл</td>
                 </tr>
                 <tr>
-                    <td data-label="Порошок на прием">Порошок на прием</td>
+                    <td data-label="Порошок на прием (г)">Порошок на прием (г)</td>
                     <td>${roundToTwo(result.requiredPowderGrams / result.mealsPerDay)}</td>
-                    <td>г</td>
                 </tr>
                 <tr>
-                    <td data-label="Ложек на прием">Ложек на прием</td>
+                    <td data-label="Ложек на прием (шт)">Ложек на прием (шт)</td>
                     <td>${result.scoopsPerMeal}</td>
-                    <td>шт</td>
                 </tr>
                 <tr class="separator">
-                    <td colspan="3">**СУТОЧНЫЙ РАЦИОН**</td>
+                    <td colspan="2">**СУТОЧНЫЙ РАЦИОН**</td>
                 </tr>
                 <tr>
-                    <td data-label="Объем воды">Объем воды в суточном рационе</td>
+                    <td data-label="Объем воды (мл)">Объем воды в суточном рационе (мл)</td>
                     <td class="highlight">${result.requiredWaterMl}</td>
-                    <td>мл</td>
                 </tr>
                 <tr>
-                    <td data-label="Сухая смесь (г)">Количество сухой смеси</td>
+                    <td data-label="Сухая смесь (г)">Количество сухой смеси (г)</td>
                     <td class="highlight">${result.requiredPowderGrams}</td>
-                    <td>г</td>
                 </tr>
                 <tr>
-                    <td data-label="Сухая смесь (ложки)">Количество сухой смеси</td>
+                    <td data-label="Сухая смесь (ложки)">Количество сухой смеси (ложек)</td>
                     <td class="highlight">${result.requiredPowderScoops}</td>
-                    <td>ложек</td>
                 </tr>
                 <tr>
-                    <td data-label="Общий объем">Общий объем готовой смеси</td>
+                    <td data-label="Общий объем (мл)">Общий объем готовой смеси (мл)</td>
                     <td class="highlight">${result.totalVolumeMl}</td>
-                    <td>мл</td>
                 </tr>
                 <tr class="separator">
-                    <td colspan="3">**ПИТАТЕЛЬНАЯ ЦЕННОСТЬ (ККАЛ)**</td>
+                    <td colspan="2">**ПИТАТЕЛЬНАЯ ЦЕННОСТЬ (ККАЛ)**</td>
                 </tr>
                 <tr>
-                    <td data-label="Калорийность (расч.)">Калорийность суточного рациона</td>
+                    <td data-label="Калорийность (ккал)">Калорийность суточного рациона (ккал)</td>
                     <td class="highlight">${result.totalCalculatedKcal.toFixed(0)}</td>
-                    <td>ккал</td>
                 </tr>
                 <tr>
-                    <td data-label="Белки">Белки (в граммах)</td>
+                    <td data-label="Белки (г)">Белки (г)</td>
                     <td>${result.proteinDailyGrams}</td>
-                    <td>г</td>
                 </tr>
                 <tr>
-                    <td data-label="Жиры">Жиры (в граммах)</td>
+                    <td data-label="Жиры (г)">Жиры (г)</td>
                     <td>${result.fatDailyGrams}</td>
-                    <td>г</td>
                 </tr>
                 <tr>
-                    <td data-label="Углеводы">Углеводы (в граммах)</td>
+                    <td data-label="Углеводы (г)">Углеводы (г)</td>
                     <td>${result.carbDailyGrams}</td>
-                    <td>г</td>
                 </tr>
             </tbody>
         </table>
