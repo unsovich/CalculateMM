@@ -280,6 +280,7 @@ function updatePatientMetrics() {
     const height = parseFloat(document.getElementById('patientHeight').value);
     const age = parseFloat(document.getElementById('patientAge').value);
     const gender = document.getElementById('patientGender').value;
+    // Фактор активности берется из input, по умолчанию он установлен в initCalculator
     const activityFactorValue = parseFloat(document.getElementById('activityFactor').value) || 1.2;
 
     const bmiResult = document.getElementById('bmiResult');
@@ -444,31 +445,12 @@ function performRationCalculation(totalDailyNeedKcal, product, concentrationType
 
 /**
  * Формирует HTML-таблицу для результатов расчета.
- * Заголовки (h4 и основной p.metric-status) теперь формируются в calculateRation()
- * для правильного выравнивания.
+ * Заголовки и подзаголовки вынесены в calculateRation() для выравнивания.
  * @param {object} result - Результаты расчета от performRationCalculation.
- * @param {boolean} isRounded - Флаг, указывающий, что это округленный расчет.
  * @returns {string} HTML-код таблицы.
  */
-function buildRationTableHTML(result, isRounded) {
-    const dailyNeed = result.totalDailyNeedKcal;
-    const caloricChange = result.totalCalculatedKcal - dailyNeed;
-
-    let subtitleHtml = '';
-
-    // Дополнительный подзаголовок с изменением калоража остаётся внутри для округленного расчета
-    if (isRounded) {
-        subtitleHtml = `
-            <p class="metric-status" style="margin-bottom: 10px;">
-                <strong>Изменение калоража:</strong> ${caloricChange > 0 ? '+' : ''}${caloricChange.toFixed(0)} ккал. 
-                (${roundToTwo((result.totalCalculatedKcal / dailyNeed) * 100)}% от потребности)
-            </p>
-        `;
-    }
-
+function buildRationTableHTML(result) {
     return `
-        ${subtitleHtml}
-        
         <table class="results-table">
             <thead>
                 <tr>
@@ -629,30 +611,44 @@ function calculateRation() {
         </div>
     `;
 
-    // Выводим результаты в две секции, оборачивая каждую таблицу в отдельный div для правильного Grid-выравнивания
+    // --- Структуры для выравнивания таблиц ---
+
+    // Точный расчет: использует пустой элемент для компенсации высоты блока статуса
+    const exactStatus = `
+        <p class="metric-status status-subtext" style="margin-top: -10px;">Расчет для полного удовлетворения потребности в Ккал</p>
+        <p class="metric-status status-caloric-change empty-placeholder">&nbsp;</p> 
+    `;
+
+    // Упрощенный расчет: содержит сообщение об изменении калоража
+    const caloricChange = roundedResult.totalCalculatedKcal - dailyNeed;
+    const roundedStatus = `
+        <p class="metric-status status-subtext" style="margin-top: -10px;">Расчет с округлением ложек на прием до ${roundedScoopsPerMeal} шт.</p>
+        <p class="metric-status status-caloric-change">
+            <strong>Изменение калоража:</strong> ${caloricChange > 0 ? '+' : ''}${caloricChange.toFixed(0)} ккал. 
+            (${roundToTwo((roundedResult.totalCalculatedKcal / dailyNeed) * 100)}% от потребности)
+        </p>
+    `;
+
+    // Выводим результаты в две секции
     rationResultDiv.innerHTML = dilutionInfo +
         '<div class="results-section calculation-section">' +
         // Колонка 1: Точный расчет
         '<div>' +
-        // Заголовок и подзаголовок вынесены для выравнивания
         '<h4>Точный расчет рациона</h4>' +
-        '<p class="metric-status" style="margin-top: -10px;">Расчет для полного удовлетворения потребности в Ккал</p>' +
-        buildRationTableHTML(exactResult, false) + // Только таблица
+        exactStatus +
+        buildRationTableHTML(exactResult) + // Передаем только результат
         '</div>' +
 
         // Колонка 2: Упрощенный расчет
         '<div>' +
-        // Заголовок и подзаголовок вынесены для выравнивания
         '<h4>Упрощенный расчет рациона (Округление)</h4>' +
-        `<p class="metric-status" style="margin-top: -10px;">Расчет с округлением ложек на прием до ${roundedScoopsPerMeal} шт.</p>` +
-        buildRationTableHTML(roundedResult, true) + // Только таблица (+ статус изменения калоража внутри)
+        roundedStatus +
+        buildRationTableHTML(roundedResult) + // Передаем только результат
         '</div>' +
         '</div>';
 }
 
-// ... ОСТАЛЬНЫЕ ФУНКЦИИ (loadProductsToSelect, initCalculator, initRationListeners, initModal, loadProductsTable, editProduct, deleteProduct, initAuthListeners, document.addEventListener)
-// ... ОСТАВЛЕНЫ БЕЗ ИЗМЕНЕНИЙ
-// ... (полный код app.js, включая все функции аутентификации, API и инициализации)
+// ... ОСТАЛЬНЫЕ ФУНКЦИИ
 
 async function loadProductsToSelect() {
     const selectElement = document.getElementById('selectedProduct');
@@ -682,6 +678,18 @@ async function loadProductsToSelect() {
 }
 
 function initCalculator() {
+    // 1. Установка пустых значений для данных пациента
+    document.getElementById('patientWeight').value = '';
+    document.getElementById('patientHeight').value = '';
+    document.getElementById('patientAge').value = '';
+
+    // 2. Установка Фактора активности по умолчанию (1.2 - Постельный режим)
+    const activityFactorElement = document.getElementById('activityFactor');
+    if (activityFactorElement) {
+        activityFactorElement.value = '1.2';
+    }
+
+    // Инициализация слушателей событий
     const inputs = ['patientWeight', 'patientHeight', 'patientAge', 'patientGender', 'activityFactor'];
     inputs.forEach(id => {
         const element = document.getElementById(id);
@@ -689,6 +697,8 @@ function initCalculator() {
             element.addEventListener('input', updatePatientMetrics);
         }
     });
+
+    // Первоначальный расчет (с пустыми полями)
     updatePatientMetrics();
 }
 
