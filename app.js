@@ -520,7 +520,8 @@ function runCalculation(product, dailyNeed, feedingsPerDay, concentrationType, s
     const totalMixWeightGramsRounded = roundedScoopsTotal * productScoopWeight;
     const totalKcalRounded = kcalPerScoop * roundedScoopsTotal;
     const totalProteinGramsRounded = proteinPerScoop * roundedScoopsTotal;
-    // ИСПРАВЛЕНО: Заменено 'roundedCarbsPerScoop' на 'roundedScoopsTotal'
+
+    // ⬇️ ИСПРАВЛЕНИЕ ОШИБКИ: Заменено 'roundedCarbsPerScoop' на 'roundedScoopsTotal'
     const totalFatGramsRounded = fatPerScoop * roundedScoopsTotal;
     const totalCarbsGramsRounded = carbsPerScoop * roundedScoopsTotal;
 
