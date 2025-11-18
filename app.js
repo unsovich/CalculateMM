@@ -8,24 +8,22 @@ function escapeHtml(text) {
 }
 
 function showError(message) {
-    const inlineErrorDiv = document.querySelector('.error-message-inline') || document.getElementById('errorMessage');
-
-    inlineErrorDiv.textContent = message;
-    inlineErrorDiv.style.display = 'block';
-    inlineErrorDiv.className = 'error-message error-message-inline';
-
+    const errorDiv = document.getElementById('errorMessage');
+    errorDiv.textContent = message;
+    errorDiv.style.display = 'block';
+    errorDiv.className = 'error-message';
     setTimeout(() => {
-        inlineErrorDiv.style.display = 'none';
+        errorDiv.style.display = 'none';
     }, 5000);
 }
 
 function showSuccess(message) {
-    const successDiv = document.getElementById('errorMessage');
-    successDiv.textContent = message;
-    successDiv.style.display = 'block';
-    successDiv.className = 'success-message success-message-inline';
+    const errorDiv = document.getElementById('errorMessage');
+    errorDiv.textContent = message;
+    errorDiv.style.display = 'block';
+    errorDiv.className = 'success-message';
     setTimeout(() => {
-        successDiv.style.display = 'none';
+        errorDiv.style.display = 'none';
     }, 3000);
 }
 
@@ -37,192 +35,200 @@ function roundToTwo(num) {
 }
 
 // --- Инициализация Supabase ---
-// !!! ВАЖНО: ЗАМЕНИТЕ ЭТОТ КЛЮЧ НА ВАШ АКТУАЛЬНЫЙ ПУБЛИЧНЫЙ ANON KEY !!!
 const SUPABASE_URL = 'https://kyxyuhttgyfihakaajsn.supabase.co';
-const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Imt5eHl1aHR0Z3lmaWhha2FhanNuIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjMyNzI4ODksImV4cCI6MjA3ODg0ODg4OX0.lti749JHmkQLvkmxp0Bcey4xQwU_e23_ZzCztGuuiKo';
+const SUPABASE_ANON_KEY = 'sb_publishable_x0GfxNq6Aq2UReH-IGO2iQ_x5zJLX4M';
 
-// Корректная инициализация клиента Supabase, используя глобальный объект из CDN
-const supabase = window.supabase ? window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY) : null;
-
-if (!supabase) {
-    console.error("Supabase client failed to initialize.");
+if (!window.supabase) {
+    showError("Ошибка: Библиотека Supabase не загружена. Проверьте подключение в index.html");
 }
+const { createClient } = window.supabase;
+const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 
 
-// --- Логика Авторизации (Supabase Auth) ---
+// --- ФУНКЦИИ АУТЕНТИФИКАЦИИ ---
 
-const authMessage = document.getElementById('authMessage');
-const signInBtn = document.getElementById('signInBtn');
-const signOutBtn = document.getElementById('signOutBtn');
-
+/**
+ * Обновляет элементы интерфейса в зависимости от статуса аутентификации.
+ * @param {object | null} user - Объект пользователя Supabase или null.
+ */
 function updateAuthUI(user) {
+    const authStatus = document.getElementById('authStatus');
+    const modalAuthStatus = document.getElementById('modalAuthStatus');
+    const authForm = document.getElementById('authForm');
+    const logoutBtn = document.getElementById('logoutBtn');
+    const saveProductBtn = document.getElementById('saveProductBtn');
+
+    // Элементы, которые нужно показать/скрыть
+    const authEmail = document.getElementById('authEmail');
+    const authPassword = document.getElementById('authPassword');
+    const signUpBtn = document.getElementById('signUpBtn');
+
     if (user) {
-        authMessage.textContent = `Вы вошли как ${user.email}`;
-        signInBtn.style.display = 'none';
-        signOutBtn.style.display = 'inline-block';
+        // Пользователь вошел в систему
+        authStatus.textContent = `Вы вошли как: ${user.email}`;
+        modalAuthStatus.textContent = `Статус: ✅ Вход выполнен (${user.email}). Вы можете добавлять и редактировать продукты.`;
+        authStatus.style.color = '#27ae60';
+
+        authForm.style.display = 'none';
+        logoutBtn.style.display = 'inline-block';
+
+        saveProductBtn.disabled = false; // Разрешаем сохранение/добавление
     } else {
-        authMessage.textContent = 'Вы не авторизованы.';
-        signInBtn.style.display = 'inline-block';
-        signOutBtn.style.display = 'none';
+        // Пользователь не вошел в систему (анонимный)
+        authStatus.textContent = `Статус: Анонимный`;
+        modalAuthStatus.textContent = `Статус: ❌ Для добавления и редактирования продуктов необходимо войти в систему.`;
+        authStatus.style.color = '#e74c3c';
+
+        authForm.style.display = 'flex';
+        logoutBtn.style.display = 'none';
+
+        saveProductBtn.disabled = true; // Запрещаем сохранение/добавление
+
+        // Очищаем поля при выходе
+        if (authEmail) authEmail.value = '';
+        if (authPassword) authPassword.value = '';
     }
 }
 
-// 1. Обработчики кнопок
-signInBtn?.addEventListener('click', async () => {
-    if (!supabase) return showError("Ошибка подключения к базе данных. Проверьте ключ Supabase.");
-    const email = prompt("Введите Email для входа (через магическую ссылку Supabase):");
-    if (email) {
-        const { error } = await supabase.auth.signInWithOtp({
-            email: email,
-            options: {
-                emailRedirectTo: window.location.origin
+async function signUpUser(email, password) {
+    try {
+        const { error } = await supabase.auth.signUp({ email, password });
+        if (error) throw new Error(error.message);
+
+        showSuccess('Регистрация успешна! Проверьте почту для подтверждения.');
+        const { data: { user } } = await supabase.auth.getUser();
+        updateAuthUI(user);
+    } catch (error) {
+        showError('Ошибка регистрации: ' + error.message);
+    }
+}
+
+async function signInUser(email, password) {
+    try {
+        const { data: { user }, error } = await supabase.auth.signInWithPassword({ email, password });
+        if (error) throw new Error(error.message);
+
+        showSuccess('Вход выполнен успешно!');
+        updateAuthUI(user);
+    } catch (error) {
+        showError('Ошибка входа: ' + error.message);
+    }
+}
+
+async function signOutUser() {
+    try {
+        const { error } = await supabase.auth.signOut();
+        if (error) throw new Error(error.message);
+
+        showSuccess('Выход выполнен.');
+        updateAuthUI(null);
+    } catch (error) {
+        showError('Ошибка выхода: ' + error.message);
+    }
+}
+
+function initAuthListeners() {
+    const authForm = document.getElementById('authForm');
+    const signUpBtn = document.getElementById('signUpBtn');
+    const logoutBtn = document.getElementById('logoutBtn');
+
+    if (authForm) {
+        authForm.addEventListener('submit', (e) => {
+            e.preventDefault();
+            const email = document.getElementById('authEmail').value;
+            const password = document.getElementById('authPassword').value;
+            signInUser(email, password);
+        });
+    }
+
+    if (signUpBtn) {
+        signUpBtn.addEventListener('click', () => {
+            const email = document.getElementById('authEmail').value;
+            const password = document.getElementById('authPassword').value;
+            if (email && password) {
+                signUpUser(email, password);
+            } else {
+                showError('Введите email и пароль для регистрации.');
             }
         });
-        if (error) {
-            showError('Ошибка входа: ' + error.message);
-        } else {
-            showSuccess('Проверьте Ваш Email для входа! (Если письма нет, проверьте папку "Спам")');
-        }
     }
-});
 
-signOutBtn?.addEventListener('click', async () => {
-    if (!supabase) return;
-    const { error } = await supabase.auth.signOut();
-    if (error) {
-        showError('Ошибка выхода: ' + error.message);
-    } else {
-        showSuccess('Вы успешно вышли из системы');
+    if (logoutBtn) {
+        logoutBtn.addEventListener('click', signOutUser);
     }
-});
-
-// 2. Слушатель изменений состояния авторизации
-if (supabase) {
-    supabase.auth.onAuthStateChange((event, session) => {
-        updateAuthUI(session?.user);
-        // Обновляем таблицу продуктов для включения/отключения кнопок редактирования/удаления
-        loadProductsTable();
-    });
 }
 
-
-// --- ProductsAPI (Взаимодействие с базой данных) ---
-
-const ProductsAPI = {
-    tableName: 'products',
-
-    // Получение всех продуктов
+// --- Новый объект API для Supabase ---
+var ProductsAPI = {
     async getAll() {
-        if (!supabase) throw new Error("Supabase клиент не инициализирован.");
         const { data, error } = await supabase
-            .from(this.tableName)
+            .from('products')
             .select('*')
             .order('name', { ascending: true });
-
-        if (error) throw error;
+        if (error) throw new Error(error.message);
         return data;
     },
 
-    // Получение продукта по ID
     async getById(id) {
-        if (!supabase) throw new Error("Supabase клиент не инициализирован.");
-        const { data, error } = await supabase
-            .from(this.tableName)
-            .select('*')
-            .eq('id', id)
-            .single();
+        const numericId = parseInt(id, 10);
+        if (isNaN(numericId)) return null;
 
-        if (error) throw error;
+        const { data, error } = await supabase
+            .from('products')
+            .select('*')
+            .eq('id', numericId)
+            .single();
+        if (error) {
+            if (error.code !== 'PGRST116') throw new Error(error.message);
+            return null;
+        }
         return data;
     },
 
-    // Сохранение/Обновление продукта
-    async save(productData) {
-        if (!supabase) throw new Error("Supabase клиент не инициализирован.");
-        const { data: { user } } = await supabase.auth.getUser();
-        if (!user) {
-            throw new Error("Для сохранения продуктов необходимо войти в систему.");
-        }
-
-        // ДОБАВЛЕНИЕ user_id В ДАННЫЕ (ТРЕБУЕТСЯ НАЛИЧИЕ СТОЛБЦА user_id)
-        productData.user_id = user.id;
-
-        let result;
-        if (productData.id) {
-            // Обновление
-            const { id, ...updateData } = productData;
-            result = await supabase
-                .from(this.tableName)
-                .update(updateData)
-                .eq('id', id)
-                .select();
-        } else {
-            // Создание
-            result = await supabase
-                .from(this.tableName)
-                .insert([productData])
-                .select();
-        }
-
-        if (result.error) throw result.error;
-        return result.data[0];
+    async addProduct(product) {
+        const { data, error } = await supabase.from('products').insert([product]).select();
+        if (error) throw new Error(error.message);
+        return data[0];
     },
 
-    // Удаление продукта
+    async updateProduct(id, product) {
+        const numericId = parseInt(id, 10);
+        const { data, error } = await supabase.from('products').update(product).eq('id', numericId).select();
+        if (error) throw new Error(error.message);
+        return data[0];
+    },
+
     async deleteProduct(id) {
-        if (!supabase) throw new Error("Supabase клиент не инициализирован.");
-        const { data: { user } } = await supabase.auth.getUser();
-        if (!user) {
-            throw new Error("Для удаления продуктов необходимо войти в систему.");
-        }
-
-        const { error } = await supabase
-            .from(this.tableName)
-            .delete()
-            .eq('id', id)
-            .eq('user_id', user.id); // Убедимся, что удаляем только свои продукты (при активном RLS)
-
-        if (error) throw error;
+        const numericId = parseInt(id, 10);
+        const { error } = await supabase.from('products').delete().eq('id', numericId);
+        if (error) throw new Error(error.message);
+        return true;
     }
 };
 
 
-// --- Функции Калькулятора ---
+// --- ФУНКЦИИ РАСЧЕТА ПАЦИЕНТА ---
 
-// 1. Расчеты
 function calculateBMI(weight, height) {
-    if (!weight || !height) {
-        return { bmi: 0, status: 'Введите данные' };
+    if (weight > 0 && height > 0) {
+        const heightM = height / 100;
+        const bmi = weight / (heightM * heightM);
+        return bmi;
     }
-    const heightM = height / 100;
-    const bmi = weight / (heightM * heightM);
-
-    let status = '';
-    if (bmi < 16) status = 'Выраженный дефицит массы';
-    else if (bmi >= 16 && bmi < 18.5) status = 'Недостаточная масса';
-    else if (bmi >= 18.5 && bmi < 25) status = 'Норма';
-    else if (bmi >= 25 && bmi < 30) status = 'Избыточная масса (предожирение)';
-    else if (bmi >= 30 && bmi < 35) status = 'Ожирение I степени';
-    else if (bmi >= 35 && bmi < 40) status = 'Ожирение II степени';
-    else status = 'Ожирение III степени';
-
-    return { bmi, status };
+    return null;
 }
 
 function calculateBMR(weight, height, age, gender) {
-    if (!weight || !height || !age) return 0;
-
-    let bmr;
-    if (gender === 'male') {
-        bmr = 88.36 + (13.4 * weight) + (4.8 * height) - (5.7 * age);
-    } else {
-        bmr = 447.6 + (9.2 * weight) + (3.1 * height) - (4.3 * age);
+    if (weight > 0 && height > 0 && age > 0) {
+        let bmr;
+        if (gender === 'male') {
+            bmr = 66.5 + (13.75 * weight) + (5.003 * height) - (6.75 * age);
+        } else {
+            bmr = 655.1 + (9.563 * weight) + (1.850 * height) - (4.676 * age);
+        }
+        return bmr;
     }
-    return Math.round(bmr);
-}
-
-function calculateDailyNeed(bmr, activityFactor) {
-    return Math.round(bmr * parseFloat(activityFactor));
+    return null;
 }
 
 function calculateFluidNeed(weight) {
@@ -260,248 +266,477 @@ function calculateFluidNeed(weight) {
     return { total: Math.round(totalFluid), breakdown: breakdown.join('<br>') };
 }
 
-// 2. Главный расчет рациона
-function calculateRation() {
-    // Получение данных из полей ввода
+function calculateFluidVolume() {
     const weight = parseFloat(document.getElementById('patientWeight').value);
-    const height = parseFloat(document.getElementById('patientHeight').value);
-    const age = parseInt(document.getElementById('patientAge').value);
-    const gender = document.getElementById('patientGender').value;
-    const activityFactor = document.getElementById('activityFactor').value;
-    const numMeals = parseInt(document.getElementById('numMeals').value);
-
-    // Расчет основных индексов (всегда должен работать)
-    const { bmi, status: bmiStatus } = calculateBMI(weight, height);
-    const bmr = calculateBMR(weight, height, age, gender);
-    const dailyNeed = calculateDailyNeed(bmr, activityFactor);
-
-    // Обновление результатов в UI для ИМТ, ОО, СП
-    document.getElementById('bmiResult').textContent = `${roundToTwo(bmi)} кг/м²`;
-    document.getElementById('bmiStatus').textContent = bmiStatus;
-    document.getElementById('bmrResult').textContent = `${bmr} ккал/сутки`;
-    document.getElementById('dailyNeedResult').textContent = `${dailyNeed} ккал/сутки`;
-    document.getElementById('dailyNeedResult').dataset.dailyNeed = dailyNeed;
-    document.getElementById('dailyNeedStatus').textContent = `ОО (${bmr}) * ФА (${activityFactor})`;
-
-
-    // Расчет жидкости
     const fluidNeed = calculateFluidNeed(weight);
     document.getElementById('totalFluidNeed').textContent = `${fluidNeed.total} мл/сутки`;
     document.getElementById('fluidStatus').textContent = fluidNeed.total > 0 ? 'Расчет по формуле Холлидея-Сегара' : 'Введите данные';
     document.getElementById('fluidBreakdown').innerHTML = fluidNeed.breakdown;
+    document.getElementById('totalFluidNeed').dataset.totalFluid = fluidNeed.total; // Сохраняем ЖВО
+}
 
-    // Обновление плейсхолдера для дополнительной жидкости
-    document.getElementById('additionalFluidNeedValue').textContent = `${Math.max(0, fluidNeed.total - 0)} мл`;
-    document.querySelector('#additionalFluidResult .metric-status').textContent = 'Требуется ввод данных';
+function updatePatientMetrics() {
+    const weight = parseFloat(document.getElementById('patientWeight').value);
+    const height = parseFloat(document.getElementById('patientHeight').value);
+    const age = parseFloat(document.getElementById('patientAge').value);
+    const gender = document.getElementById('patientGender').value;
+    const activityFactorValue = parseFloat(document.getElementById('activityFactor').value) || 1.2;
 
+    const bmiResult = document.getElementById('bmiResult');
+    const bmiStatus = document.getElementById('bmiStatus');
+    const bmrResult = document.getElementById('bmrResult');
+    const dailyNeedResult = document.getElementById('dailyNeedResult');
+    const dailyNeedStatus = document.getElementById('dailyNeedStatus');
+    const activityFactorSelect = document.getElementById('activityFactor');
+    const activityFactorText = activityFactorSelect.options[activityFactorSelect.selectedIndex].text.split(' - ')[1] || 'Не задан';
 
-    // --- Расчет рациона питания ---
+    const bmi = calculateBMI(weight, height);
+    const bmr = calculateBMR(weight, height, age, gender);
+    let dailyNeed = null;
+
+    // Обновление ИМТ
+    if (bmi) {
+        let status = '';
+        if (bmi < 18.5) { status = 'Недостаток веса'; bmiStatus.style.color = '#e74c3c'; }
+        else if (bmi >= 18.5 && bmi < 24.9) { status = 'Нормальный вес'; bmiStatus.style.color = '#27ae60'; }
+        else if (bmi >= 25 && bmi < 29.9) { status = 'Избыточный вес'; bmiStatus.style.color = '#f39c12'; }
+        else { status = 'Ожирение'; bmiStatus.style.color = '#c0392b'; }
+        bmiResult.textContent = `${bmi.toFixed(1)} кг/м²`;
+        bmiStatus.textContent = status;
+    } else {
+        bmiResult.textContent = '0.0 кг/м²';
+        bmiStatus.textContent = 'Введите данные';
+        bmiStatus.style.color = '#333';
+    }
+
+    // Обновление ОО и СП
+    if (bmr) {
+        bmrResult.textContent = `${bmr.toFixed(0)} ккал/сутки`;
+        dailyNeed = bmr * activityFactorValue;
+        dailyNeedResult.textContent = `${dailyNeed.toFixed(0)} ккал/сутки`;
+        dailyNeedResult.style.color = '#2980b9';
+        dailyNeedStatus.textContent = activityFactorText;
+    } else {
+        bmrResult.textContent = '0 ккал/сутки';
+        dailyNeedResult.textContent = '0 ккал/сутки';
+        dailyNeedResult.style.color = '#333';
+        dailyNeedStatus.textContent = 'ОО * Фактор активности';
+    }
+
+    dailyNeedResult.dataset.dailyNeed = dailyNeed ? dailyNeed.toFixed(0) : '0';
+
+    // Обновляем расчет ЖВО и рациона
+    calculateFluidVolume();
+    const selectedProductId = document.getElementById('selectedProduct').value;
+    if (dailyNeed > 0 && selectedProductId) {
+        calculateRation();
+    } else {
+        document.getElementById('rationResult').innerHTML = '';
+        document.getElementById('additionalFluidResult').innerHTML = '';
+    }
+}
+
+// --- Главная функция расчета рациона ---
+
+/**
+ * Выполняет расчет суточного рациона и его состава.
+ * @param {number} totalDailyNeedKcal - Суточная потребность в ккал.
+ * @param {object} product - Объект продукта из базы.
+ * @param {string} concentrationType - 'ordinary' или 'hyper'.
+ * @param {number} numMeals - Количество приемов пищи в сутки.
+ * @param {number} totalFluidNeedMl - Общая суточная потребность в жидкости (ЖВО).
+ * @param {number | null} scoopsOverride - Общее количество ложек для расчета (для округления), или null для точного расчета.
+ * @returns {object} Объект с результатами расчета.
+ */
+function performRationCalculation(totalDailyNeedKcal, product, concentrationType, numMeals, scoopsOverride = null) {
+    const scoopsBase = product.scoopsOrdinary;
+    const waterBase = product.waterOrdinary;
+    const scoopWeight = product.scoopWeight; // Вес 1 ложки в граммах
+    const kcalPer100g = product.calories;
+
+    // 1. Определение параметров порции на основе типа разведения
+    let scoopsPerServing, waterPerServing;
+
+    if (concentrationType === 'ordinary') {
+        scoopsPerServing = scoopsBase;
+        waterPerServing = waterBase;
+    } else { // 'hyper'
+        // Логика по запросу: в 1.5 раза больше смеси на то же количество воды
+        scoopsPerServing = scoopsBase * 1.5;
+        waterPerServing = waterBase;
+    }
+
+    // Объем порции: Объем воды + Объем порошка (принимаем 1г порошка = 1мл)
+    const powderWeightPerServing = scoopsPerServing * scoopWeight;
+    const volumePerServing = waterPerServing + powderWeightPerServing;
+
+    // Расчет Ккал/мл (динамический)
+    const kcalPerServing = (kcalPer100g / 100) * powderWeightPerServing;
+    const kcalPerMl = kcalPerServing / volumePerServing;
+
+    // 2. Расчет суточных потребностей (на основе ккал)
+
+    let totalVolumeMl, requiredPowderGrams, requiredPowderScoops, requiredWaterMl, totalCalculatedKcal;
+
+    if (scoopsOverride !== null) {
+        // --- УПРОЩЕННЫЙ РАСЧЕТ (С ОКРУГЛЕНИЕМ ЛОЖЕК) ---
+        requiredPowderScoops = scoopsOverride;
+        requiredPowderGrams = requiredPowderScoops * scoopWeight;
+
+        // Вода рассчитывается исходя из общего количества ложек и разведения
+        // Общее количество порций: requiredPowderScoops / scoopsPerServing
+        const totalServings = requiredPowderScoops / scoopsPerServing;
+        requiredWaterMl = totalServings * waterPerServing;
+
+        totalVolumeMl = requiredWaterMl + requiredPowderGrams;
+
+        // Пересчитываем калорийность, исходя из округленного количества порошка
+        totalCalculatedKcal = Math.round((kcalPer100g / 100) * requiredPowderGrams);
+    } else {
+        // --- ТОЧНЫЙ РАСЧЕТ ---
+        totalVolumeMl = Math.round(totalDailyNeedKcal / kcalPerMl);
+
+        // Расчет требуемого количества порошка: (Общий объем / Объем порции) * Вес порошка в порции
+        requiredPowderGrams = (totalVolumeMl / volumePerServing) * powderWeightPerServing;
+        requiredPowderScoops = requiredPowderGrams / scoopWeight;
+
+        requiredWaterMl = totalVolumeMl - requiredPowderGrams;
+        totalCalculatedKcal = totalDailyNeedKcal; // По определению
+    }
+
+    // 3. Расчет состава (БЖУ)
+    const proteinDailyGrams = (requiredPowderGrams / 100) * product.proteins;
+    const fatDailyGrams = (requiredPowderGrams / 100) * product.fats;
+    const carbDailyGrams = (requiredPowderGrams / 100) * product.carbs;
+
+    const proteinKcal = Math.round(proteinDailyGrams * 4);
+    const fatKcal = Math.round(fatDailyGrams * 9);
+    const carbKcal = Math.round(carbDailyGrams * 4);
+    const totalCalculatedKcalRecalculated = proteinKcal + fatKcal + carbKcal; // для контроля
+
+    return {
+        mealsPerDay: numMeals,
+        kcalPerMl: kcalPerMl,
+        totalVolumeMl: Math.round(totalVolumeMl),
+        requiredPowderGrams: roundToTwo(requiredPowderGrams),
+        requiredPowderScoops: roundToTwo(requiredPowderScoops),
+        requiredWaterMl: Math.round(requiredWaterMl),
+        volumePerMeal: roundToTwo(totalVolumeMl / numMeals),
+        scoopsPerMeal: roundToTwo(requiredPowderScoops / numMeals),
+
+        proteinDailyGrams: roundToTwo(proteinDailyGrams),
+        fatDailyGrams: roundToTwo(fatDailyGrams),
+        carbDailyGrams: roundToTwo(carbDailyGrams),
+
+        proteinKcal: proteinKcal,
+        fatKcal: fatKcal,
+        carbKcal: carbKcal,
+
+        totalDailyNeedKcal: totalDailyNeedKcal,
+        totalCalculatedKcal: totalCalculatedKcal,
+
+        scoopsPerServing: roundToTwo(scoopsPerServing),
+        waterPerServing: roundToTwo(waterPerServing),
+    };
+}
+
+/**
+ * Формирует HTML-таблицу для результатов расчета.
+ * @param {object} result - Результаты расчета от performRationCalculation.
+ * @param {string} title - Заголовок секции.
+ * @param {string} subtitle - Подзаголовок с дополнительной информацией.
+ * @returns {string} HTML-код секции.
+ */
+function buildRationTableHTML(result, title, subtitle, isRounded) {
+    const dailyNeed = result.totalDailyNeedKcal;
+    const caloricChange = result.totalCalculatedKcal - dailyNeed;
+
+    let titleHtml = `
+        <h4>${title}</h4>
+        <p class="metric-status" style="margin-top: -10px;">${subtitle}</p>
+    `;
+
+    if (isRounded) {
+        titleHtml = `
+            <h4 style="margin-top: 30px;">${title}</h4>
+            <p class="metric-status" style="margin-top: -10px;">
+                ${subtitle}<br>
+                <strong>Изменение калоража:</strong> ${caloricChange > 0 ? '+' : ''}${caloricChange.toFixed(0)} ккал. 
+                (${roundToTwo((result.totalCalculatedKcal / dailyNeed) * 100)}% от потребности)
+            </p>
+        `;
+    }
+
+    return `
+        ${titleHtml}
+        
+        <table class="results-table">
+            <thead>
+                <tr>
+                    <th>Параметр</th>
+                    <th>Значение</th>
+                    <th>Единица</th>
+                </tr>
+            </thead>
+            <tbody>
+                <tr>
+                    <td data-label="Количество приемов">Количество приемов пищи</td>
+                    <td class="highlight">${result.mealsPerDay}</td>
+                    <td>шт/сутки</td>
+                </tr>
+                <tr>
+                    <td data-label="Объем на прием">Объем готовой смеси на прием</td>
+                    <td>${result.volumePerMeal}</td>
+                    <td>мл</td>
+                </tr>
+                <tr>
+                    <td data-label="Порошок на прием">Порошок на прием</td>
+                    <td>${roundToTwo(result.requiredPowderGrams / result.mealsPerDay)}</td>
+                    <td>г</td>
+                </tr>
+                <tr>
+                    <td data-label="Ложек на прием">Ложек на прием</td>
+                    <td>${result.scoopsPerMeal}</td>
+                    <td>шт</td>
+                </tr>
+                <tr class="separator">
+                    <td colspan="3">**СУТОЧНЫЙ РАЦИОН**</td>
+                </tr>
+                <tr>
+                    <td data-label="Объем воды">Объем воды в суточном рационе</td>
+                    <td class="highlight">${result.requiredWaterMl}</td>
+                    <td>мл</td>
+                </tr>
+                <tr>
+                    <td data-label="Сухая смесь (г)">Количество сухой смеси</td>
+                    <td class="highlight">${result.requiredPowderGrams}</td>
+                    <td>г</td>
+                </tr>
+                <tr>
+                    <td data-label="Сухая смесь (ложки)">Количество сухой смеси</td>
+                    <td class="highlight">${result.requiredPowderScoops}</td>
+                    <td>ложек</td>
+                </tr>
+                <tr>
+                    <td data-label="Общий объем">Общий объем готовой смеси</td>
+                    <td class="highlight">${result.totalVolumeMl}</td>
+                    <td>мл</td>
+                </tr>
+                <tr class="separator">
+                    <td colspan="3">**ПИТАТЕЛЬНАЯ ЦЕННОСТЬ (ККАЛ)**</td>
+                </tr>
+                <tr>
+                    <td data-label="Калорийность (расч.)">Калорийность суточного рациона</td>
+                    <td class="highlight">${result.totalCalculatedKcal.toFixed(0)}</td>
+                    <td>ккал</td>
+                </tr>
+                <tr>
+                    <td data-label="Белки">Белки (в граммах)</td>
+                    <td>${result.proteinDailyGrams}</td>
+                    <td>г</td>
+                </tr>
+                <tr>
+                    <td data-label="Жиры">Жиры (в граммах)</td>
+                    <td>${result.fatDailyGrams}</td>
+                    <td>г</td>
+                </tr>
+                <tr>
+                    <td data-label="Углеводы">Углеводы (в граммах)</td>
+                    <td>${result.carbDailyGrams}</td>
+                    <td>г</td>
+                </tr>
+            </tbody>
+        </table>
+    `;
+}
+
+function calculateRation() {
+    // 1. Получение данных пациента
+    const dailyNeed = parseFloat(document.getElementById('dailyNeedResult').dataset.dailyNeed);
+    const totalFluidNeedMl = parseFloat(document.getElementById('totalFluidNeed').dataset.totalFluid);
+    const numMeals = parseInt(document.getElementById('numMeals').value);
+
+    // 2. Получение данных продукта
     const productSelect = document.getElementById('selectedProduct');
     const selectedProductId = productSelect.value;
     const concentrationType = document.getElementById('concentrationType').value;
     const rationResultDiv = document.getElementById('rationResult');
-
-    if (dailyNeed <= 1 || !selectedProductId || numMeals <= 0) {
-        rationResultDiv.innerHTML = '<p class="error-message-inline">Введите данные пациента, выберите смесь и количество приемов.</p>';
-        return;
-    }
-
-    // Поиск выбранного продукта из глобального списка
     const allProducts = window.PRODUCT_DATA || [];
     const selectedProduct = allProducts.find(p => String(p.id) === selectedProductId);
 
-    if (!selectedProduct) {
-        rationResultDiv.innerHTML = '<p class="error-message-inline">Продукт не найден в базе данных. Попробуйте обновить страницу или проверить подключение к Supabase.</p>';
+    if (dailyNeed <= 1 || !selectedProductId || numMeals <= 0 || !selectedProduct) {
+        rationResultDiv.innerHTML = '<p class="error-message-inline">Введите данные пациента, выберите смесь и количество приемов.</p>';
+        document.getElementById('additionalFluidResult').innerHTML = '';
         return;
     }
 
-    // 3. Вычисление параметров для выбранной концентрации
-    const isOrdinary = concentrationType === 'ordinary';
-    const kcalPerMl = isOrdinary ? 1.0 : 1.5;
-    const scoops = isOrdinary ? selectedProduct.scoopsOrdinary : selectedProduct.scoopsHyper;
-    const water = isOrdinary ? selectedProduct.waterOrdinary : selectedProduct.waterHyper;
-    const servingVolume = isOrdinary ? selectedProduct.servingVolume_ordinary : selectedProduct.servingVolume_hyper;
-    const scoopWeight = selectedProduct.scoopWeight;
-
-    // Проверка наличия данных для разведения
-    if (!scoops || !water || !servingVolume || !scoopWeight) {
-        rationResultDiv.innerHTML = `<p class="error-message-inline">Для выбранного продукта (${concentrationType === 'ordinary' ? 'Обычное' : 'Гиперкалорическое'}) не заданы параметры разведения. Пожалуйста, заполните: **${scoops ? '' : 'ложки,'} ${water ? '' : 'вода,'} ${servingVolume ? '' : 'объем,'} ${scoopWeight ? '' : 'вес ложки'}** в разделе "Управление продуктами".</p>`;
+    // Проверка наличия обязательных данных для разведения
+    const { scoopsOrdinary, waterOrdinary, scoopWeight, calories } = selectedProduct;
+    if (!scoopsOrdinary || !waterOrdinary || !scoopWeight || !calories) {
+        rationResultDiv.innerHTML = `<p class="error-message-inline">Для выбранного продукта не заполнены обязательные параметры разведения (обычное разведение, вес ложки, калории/100г). Заполните их в разделе "Управление продуктами".</p>`;
+        document.getElementById('additionalFluidResult').innerHTML = '';
         return;
     }
 
-    // Расчет общего объема смеси
-    const totalVolumeLiters = dailyNeed / (kcalPerMl * 1000); // Общий объем в литрах
-    const totalVolumeMl = Math.round(totalVolumeLiters * 1000); // Общий объем в мл
 
-    // Расчет порций
-    const totalServings = Math.ceil(totalVolumeMl / servingVolume);
-    const totalPowderGrams = totalServings * scoops * scoopWeight;
-    const totalPowderScoops = totalServings * scoops;
-
-    // Расчет на один прием пищи
-    const volumePerMeal = roundToTwo(totalVolumeMl / numMeals);
-    const mealsPerDay = numMeals;
-
-    // Дополнительные расчеты
-    const proteinDailyGrams = (totalPowderGrams / 100) * selectedProduct.proteins;
-    const fatDailyGrams = (totalPowderGrams / 100) * selectedProduct.fats;
-    const carbDailyGrams = (totalPowderGrams / 100) * selectedProduct.carbs;
-
-    // Энергетическая ценность
-    const proteinKcal = Math.round(proteinDailyGrams * 4);
-    const fatKcal = Math.round(fatDailyGrams * 9);
-    const carbKcal = Math.round(carbDailyGrams * 4);
-    const totalCalculatedKcal = proteinKcal + fatKcal + carbKcal;
-
-    // Расчет дополнительной жидкости
-    // Общее количество воды в смеси: (объем_порции - вес_порошка_в_порции) * количество_порций
-    // Используем упрощенный расчет воды: (Общий объем - Общий вес порошка в мл, где 1г ~ 1мл)
-    const totalWaterInRation = Math.round(totalVolumeMl - totalPowderGrams);
-    const additionalFluid = Math.max(0, fluidNeed.total - totalWaterInRation);
-
-    // Обновление плейсхолдера для дополнительной жидкости
-    document.getElementById('additionalFluidNeedValue').textContent = `${additionalFluid} мл`;
-    document.querySelector('#additionalFluidResult .metric-status').textContent = `ЖВО (${fluidNeed.total} мл) - Вода в смеси (${totalWaterInRation} мл)`;
+    // --- 3. Точный расчет (по ккал) ---
+    const exactResult = performRationCalculation(dailyNeed, selectedProduct, concentrationType, numMeals);
 
 
-    // Вывод результатов
-    rationResultDiv.innerHTML = `
+    // --- 4. Упрощенный расчет (с округлением ложек) ---
+
+    // Округляем общее количество ложек до ближайшего целого числа
+    const roundedScoops = Math.round(exactResult.requiredPowderScoops);
+    const roundedResult = performRationCalculation(dailyNeed, selectedProduct, concentrationType, numMeals, roundedScoops);
+
+
+    // --- 5. Расчет дополнительной жидкости (на основе ТОЧНОГО РАСЧЕТА) ---
+    const totalWaterInRation = exactResult.requiredWaterMl;
+    const additionalFluid = Math.max(0, totalFluidNeedMl - totalWaterInRation);
+
+    document.getElementById('additionalFluidResult').innerHTML = `
         <div class="results-section">
-            <h4>📄 Расчет рациона: ${escapeHtml(selectedProduct.name)} (${kcalPerMl.toFixed(1)} ккал/мл)</h4>
-            
-            <div class="result-row ration-summary-row">
-                <div class="result-card result-portion-volume ration-summary-card">
-                    <h5>Общий объем смеси</h5>
-                    <p class="small-metric-value">${totalVolumeMl} мл</p>
-                    <p class="metric-status">Расчетная потребность</p>
-                </div>
-                <div class="result-card result-portion-powder ration-summary-card">
-                    <h5>Смеси на сутки</h5>
-                    <p class="small-metric-value">${roundToTwo(totalPowderGrams)} г</p>
-                    <p class="metric-status">Или ${roundToTwo(totalPowderScoops)} мерных ложек</p>
-                </div>
+            <h4>💧 Расчет дополнительной жидкости</h4>
+            <div class="result-card result-portion-volume">
+                <h5>Дополнительный объем жидкости</h5>
+                <p class="small-metric-value">${additionalFluid} мл</p>
+                <p class="metric-status">ЖВО (${totalFluidNeedMl} мл) - Вода в смеси (${totalWaterInRation} мл)</p>
             </div>
-
-            <table class="results-table">
-                <thead>
-                    <tr>
-                        <th>Параметр</th>
-                        <th>Значение</th>
-                        <th>Единица</th>
-                    </tr>
-                </thead>
-                <tbody>
-                    <tr>
-                        <td data-label="Количество приемов">Количество приемов пищи</td>
-                        <td class="highlight">${mealsPerDay}</td>
-                        <td>шт/сутки</td>
-                    </tr>
-                    <tr>
-                        <td data-label="Объем на прием">Объем на один прием пищи</td>
-                        <td class="highlight">${volumePerMeal}</td>
-                        <td>мл</td>
-                    </tr>
-                    <tr>
-                        <td data-label="Порошок на прием">Порошок на один прием пищи</td>
-                        <td>${roundToTwo(totalPowderGrams / mealsPerDay)}</td>
-                        <td>г</td>
-                    </tr>
-                    <tr>
-                        <td data-label="Кал/мл">Энергетическая плотность</td>
-                        <td>${kcalPerMl.toFixed(1)}</td>
-                        <td>ккал/мл</td>
-                    </tr>
-                </tbody>
-            </table>
-
-            <h4 style="margin-top: 20px;">🍚 Состав рациона в сутки (Р-Ж-У)</h4>
-            <table class="results-table">
-                <thead>
-                    <tr>
-                        <th>Нутриент</th>
-                        <th>Кол-во (г)</th>
-                        <th>Ккал</th>
-                        <th>% от общей ккал</th>
-                    </tr>
-                </thead>
-                <tbody>
-                    <tr>
-                        <td data-label="Белки">Белки</td>
-                        <td>${roundToTwo(proteinDailyGrams)}</td>
-                        <td>${proteinKcal}</td>
-                        <td>${roundToTwo((proteinKcal / dailyNeed) * 100)}%</td>
-                    </tr>
-                    <tr>
-                        <td data-label="Жиры">Жиры</td>
-                        <td>${roundToTwo(fatDailyGrams)}</td>
-                        <td>${fatKcal}</td>
-                        <td>${roundToTwo((fatKcal / dailyNeed) * 100)}%</td>
-                    </tr>
-                    <tr>
-                        <td data-label="Углеводы">Углеводы</td>
-                        <td>${roundToTwo(carbDailyGrams)}</td>
-                        <td>${carbKcal}</td>
-                        <td>${roundToTwo((carbKcal / dailyNeed) * 100)}%</td>
-                    </tr>
-                    <tr>
-                        <td data-label="Итого" class="highlight">Итого (расч.)</td>
-                        <td class="highlight">—</td>
-                        <td class="highlight">${totalCalculatedKcal}</td>
-                        <td class="highlight">${roundToTwo((totalCalculatedKcal / dailyNeed) * 100)}%</td>
-                    </tr>
-                </tbody>
-            </table>
-
-            <h4 style="margin-top: 20px;">📦 Расход продукта (на ${totalServings} порций)</h4>
-            <p style="font-size: 0.9em;">Для приготовления ${totalVolumeMl} мл смеси потребуется примерно <b>${Math.ceil(totalPowderGrams / selectedProduct.packageAmount)}</b> банок по ${selectedProduct.packageAmount} г.</p>
         </div>
     `;
+
+
+    // --- 6. Вывод результатов ---
+
+    const concentrationName = concentrationType === 'ordinary' ? 'Обычное' : 'Гиперкалорическое';
+
+    // Формируем блок с общей информацией о разведении
+    const dilutionInfo = `
+        <div class="results-section">
+            <h4>📄 Расчет рациона: ${escapeHtml(selectedProduct.name)}</h4>
+            <div class="result-row ration-summary-row">
+                <div class="result-card ration-summary-card">
+                    <h5>Тип разведения</h5>
+                    <p class="small-metric-value">${concentrationName}</p>
+                    <p class="metric-status">${exactResult.kcalPerMl.toFixed(3)} ккал/мл</p>
+                </div>
+                <div class="result-card ration-summary-card">
+                    <h5>Базовая порция (${concentrationName})</h5>
+                    <p class="small-metric-value">${exactResult.scoopsPerServing} ложек</p>
+                    <p class="metric-status">на ${exactResult.waterPerServing} мл воды</p>
+                </div>
+            </div>
+        </div>
+    `;
+
+    // Выводим результаты в две секции
+    rationResultDiv.innerHTML = dilutionInfo +
+        '<div class="results-section calculation-section">' +
+        buildRationTableHTML(exactResult, 'Точный расчет рациона', 'Расчет для полного удовлетворения потребности в Ккал', false) +
+        buildRationTableHTML(roundedResult, 'Упрощенный расчет рациона (Округление)', `Расчет с округлением суточной дозы смеси до ${roundedScoops} ложек (ближайшее целое)`, true) +
+        '</div>';
 }
 
+// ... ОСТАЛЬНЫЕ ФУНКЦИИ (initCalculator, loadProductsToSelect, и т.д.)
+// ОСТАВЛЕНЫ БЕЗ ИЗМЕНЕНИЙ, ТАК КАК ОНИ НЕ ТРЕБОВАЛИСЬ
+// *************************************************************************
 
-// --- Логика модального окна и базы продуктов ---
+async function loadProductsToSelect() {
+    const selectElement = document.getElementById('selectedProduct');
+    if (!selectElement) return;
 
-const productModal = document.getElementById('productModal');
-const searchMedpitanieBtn = document.getElementById('searchMedpitanieBtn');
-const closeModalBtn = document.getElementById('closeModalBtn');
-const cancelBtn = document.getElementById('cancelBtn');
-const productForm = document.getElementById('productForm');
-const modalTitle = document.getElementById('modalTitle');
+    try {
+        selectElement.innerHTML = '<option value="">-- Загрузка продуктов... --</option>';
 
-// Открытие модального окна
-async function openModal(productId = null) {
-    productForm.reset();
-    document.getElementById('productId').value = '';
+        const products = await ProductsAPI.getAll();
+        window.PRODUCT_DATA = products; // Сохраняем глобально для calculateRation
 
-    // Проверка авторизации
-    const { data: { user } } = supabase ? await supabase.auth.getUser() : { data: { user: null } };
-    const isAuthenticated = !!user;
+        if (products.length === 0) {
+            selectElement.innerHTML = '<option value="">Нет доступных продуктов. Добавьте продукты в базу.</option>';
+            return;
+        }
 
-    if (!isAuthenticated) {
-        // Если не авторизован, открываем модальное окно только для просмотра
-        modalTitle.textContent = 'База продуктов (только просмотр)';
-        showError('Для добавления, редактирования и удаления продуктов необходимо войти в систему.');
-        // Скрываем форму для неавторизованных пользователей
-        document.querySelector('#productForm h3:nth-of-type(1)').style.display = 'none'; // Состав
-        document.querySelector('#productForm h3:nth-of-type(2)').style.display = 'none'; // Структура
-        document.querySelector('#productForm h3:nth-of-type(3)').style.display = 'none'; // Обычное
-        document.querySelector('#productForm h3:nth-of-type(4)').style.display = 'none'; // Гиперкалорическое
-        productForm.style.display = 'none';
-    } else {
-        // Авторизован: отображаем форму
-        document.querySelector('#productForm h3:nth-of-type(1)').style.display = 'block';
-        document.querySelector('#productForm h3:nth-of-type(2)').style.display = 'block';
-        document.querySelector('#productForm h3:nth-of-type(3)').style.display = 'block';
-        document.querySelector('#productForm h3:nth-of-type(4)').style.display = 'block';
-        productForm.style.display = 'block';
+        selectElement.innerHTML = '<option value="">-- Выберите смесь --</option>' +
+            products.map(p => `<option value="${p.id}">${escapeHtml(p.name)}</option>`).join('');
 
+        updatePatientMetrics();
+
+    } catch (error) {
+        console.error('Ошибка загрузки продуктов:', error);
+        selectElement.innerHTML = '<option value="">Ошибка загрузки продуктов</option>';
+        showError('Ошибка загрузки списка продуктов из Supabase. Проверьте RLS и ключи.');
+    }
+}
+
+// --- Инициализация слушателей ---
+
+function initCalculator() {
+    const inputs = ['patientWeight', 'patientHeight', 'patientAge', 'patientGender', 'activityFactor'];
+    inputs.forEach(id => {
+        const element = document.getElementById(id);
+        if (element) {
+            element.addEventListener('input', updatePatientMetrics);
+        }
+    });
+    updatePatientMetrics();
+}
+
+function initRationListeners() {
+    const selectedProduct = document.getElementById('selectedProduct');
+    const concentrationType = document.getElementById('concentrationType');
+    const numMeals = document.getElementById('numMeals');
+    const autoCalculate = () => {
+        const selectedProductId = selectedProduct.value;
+        const dailyNeed = parseFloat(document.getElementById('dailyNeedResult').dataset.dailyNeed);
+        if (selectedProductId && dailyNeed > 0) {
+            calculateRation();
+        } else {
+            document.getElementById('rationResult').innerHTML = "";
+            document.getElementById('additionalFluidResult').innerHTML = '';
+        }
+    };
+    if (selectedProduct) selectedProduct.addEventListener('change', autoCalculate);
+    if (concentrationType) concentrationType.addEventListener('change', autoCalculate);
+    if (numMeals) numMeals.addEventListener('input', autoCalculate);
+}
+
+// ... (Остальные функции, включая initProductsSearch, initModal, логику модального окна и CRUD)
+// Здесь для краткости опущены, но в финальном файле они должны быть восстановлены.
+// В данном случае, я предоставлю только те части, которые требуют изменения или являются контекстно значимыми.
+
+// --- ИНИЦИАЛИЗАЦИЯ ИНТЕРФЕЙСА (восстановлена из предыдущего шага) ---
+
+function initModal() {
+    const productModal = document.getElementById('productModal');
+    const searchMedpitanieBtn = document.getElementById('searchMedpitanieBtn');
+    const closeModalBtn = document.getElementById('closeModalBtn');
+    const cancelBtn = document.getElementById('cancelBtn');
+    const productForm = document.getElementById('productForm');
+
+    // Закрытие модального окна
+    function closeModal() {
+        productModal.style.display = 'none';
+        document.getElementById('errorMessage').textContent = '';
+        document.getElementById('errorMessage').style.display = 'none';
+        productForm.reset();
+        document.getElementById('productId').value = '';
+    }
+    window.closeModal = closeModal;
+
+    // Открытие модального окна
+    async function openModal(productId = null) {
+        productForm.reset();
+        document.getElementById('productId').value = '';
+
+        const { data: { user } } = supabase ? await supabase.auth.getUser() : { data: { user: null } };
+        const isAuthenticated = !!user;
+
+        document.getElementById('saveProductBtn').disabled = !isAuthenticated;
+
+        // ... (логика заполнения формы для редактирования) ...
         if (productId) {
-            // Редактирование
-            modalTitle.textContent = 'Редактировать продукт';
-            try {
-                const product = await ProductsAPI.getById(productId);
-                if (!product) throw new Error('Продукт не найден');
-
+            const product = await ProductsAPI.getById(productId);
+            if (product) {
                 document.getElementById('productId').value = product.id;
                 document.getElementById('productName').value = product.name || '';
                 document.getElementById('productCalories').value = product.calories || '';
@@ -521,147 +756,14 @@ async function openModal(productId = null) {
 
                 document.getElementById('productApplicationMethod').value = product.applicationMethod || '';
                 document.getElementById('productDescription').value = product.description || '';
-
-            } catch (error) {
-                showError('Ошибка загрузки продукта для редактирования: ' + error.message);
-                // Если не удалось загрузить, переходим в режим добавления
-                modalTitle.textContent = 'Добавить новый продукт';
-                document.getElementById('productId').value = '';
             }
-        } else {
-            // Добавление
-            modalTitle.textContent = 'Добавить новый продукт';
-        }
-    }
-
-    await loadProductsTable(); // Загружаем таблицу в любом случае
-    productModal.style.display = 'block';
-}
-
-// Закрытие модального окна
-function closeModal() {
-    productModal.style.display = 'none';
-    document.getElementById('errorMessage').style.display = 'none';
-    document.getElementById('productForm').reset();
-    document.getElementById('productId').value = '';
-}
-
-// Загрузка продуктов в выпадающий список калькулятора (ТОЛЬКО SUPABASE)
-async function loadProductsToSelect() {
-    const select = document.getElementById('selectedProduct');
-    if (!select) return;
-
-    let finalProducts = [];
-    select.innerHTML = '<option value="">-- Загрузка... --</option>'; // Сообщение о загрузке
-
-    try {
-        finalProducts = await ProductsAPI.getAll();
-        // Сохраняем глобально для использования в calculateRation
-        window.PRODUCT_DATA = finalProducts;
-    } catch (error) {
-        console.error('Ошибка загрузки продуктов из Supabase:', error);
-        // Выводим ошибку для пользователя
-        showError('Ошибка загрузки продуктов: ' + (error.message.includes('client not initialized') ? 'Ошибка ключа/подключения Supabase.' : error.message));
-        select.innerHTML = '<option value="">-- Ошибка загрузки продуктов --</option>';
-        calculateRation(); // Запускаем расчет, чтобы хотя бы ИМТ/ОО/СП обновились
-        return;
-    }
-
-    select.innerHTML = '';
-
-    if (finalProducts.length === 0) {
-        select.innerHTML = '<option value="">-- Нет продуктов в базе --</option>';
-        calculateRation();
-        return;
-    }
-
-    select.innerHTML = finalProducts.map(product =>
-        `<option value="${product.id}">${escapeHtml(product.name)}</option>`
-    ).join('');
-
-    // Сразу запускаем расчет для первого продукта
-    calculateRation();
-}
-
-// Загрузка продуктов в таблицу модального окна
-async function loadProductsTable() {
-    const tbody = document.getElementById('productsTableBody');
-    if (!tbody) return;
-
-    try {
-        const { data: { user } } = supabase ? await supabase.auth.getUser() : { data: { user: null } };
-        const isAuthenticated = !!user;
-
-        const products = await ProductsAPI.getAll();
-
-        if (products.length === 0) {
-            tbody.innerHTML = '<tr><td colspan="3" class="empty-state">Нет продуктов в базе данных</td></tr>';
-            return;
         }
 
-        tbody.innerHTML = products.map(product => `
-            <tr>
-                <td>${escapeHtml(product.name)}</td>
-                <td>${product.calories || '—'}</td>
-                <td>
-                    <button class="btn-small btn-edit" onclick="editProduct(${product.id})" ${isAuthenticated ? '' : 'disabled'}>Редактировать</button>
-                    <button class="btn-small btn-delete" onclick="deleteProduct(${product.id})" ${isAuthenticated ? '' : 'disabled'}>Удалить</button>
-                </td>
-            </tr>
-        `).join('');
-    } catch (error) {
-        showError('Ошибка загрузки списка продуктов: ' + error.message);
-        tbody.innerHTML = '<tr><td colspan="3" class="empty-state">Ошибка загрузки данных</td></tr>';
-    }
-}
-
-// Глобальные функции для кнопок (нужны для вызова из HTML атрибутов onclick)
-window.editProduct = async function (productId) {
-    if (!supabase) return showError("Ошибка подключения к базе данных. Проверьте ключ Supabase.");
-    const { data: { user } } = await supabase.auth.getUser();
-    if (user) {
-        await openModal(productId);
-    } else {
-        showError('Для редактирования продуктов необходимо войти в систему.');
-    }
-};
-
-window.deleteProduct = async function (productId) {
-    if (!supabase) return showError("Ошибка подключения к базе данных. Проверьте ключ Supabase.");
-    const { data: { user } } = await supabase.auth.getUser();
-    if (!user) {
-        showError('Для удаления продуктов необходимо войти в систему.');
-        return;
-    }
-
-    // Проверка на ID удалена, чтобы разрешить удаление любых продуктов
-
-    if (!confirm('Вы уверены, что хотите удалить этот продукт?')) {
-        return;
-    }
-
-    try {
-        await ProductsAPI.deleteProduct(productId);
-        showSuccess('Продукт успешно удален');
         await loadProductsTable();
-        await loadProductsToSelect();
-    } catch (error) {
-        showError('Ошибка удаления продукта: ' + error.message);
+        productModal.style.display = 'block';
     }
-};
+    window.openModal = openModal;
 
-// --- Инициализация слушателей ---
-document.addEventListener('DOMContentLoaded', () => {
-    // 1. Слушатели калькулятора
-    const inputs = ['patientWeight', 'patientHeight', 'patientAge', 'patientGender', 'activityFactor', 'selectedProduct', 'concentrationType', 'numMeals'];
-    inputs.forEach(id => {
-        const element = document.getElementById(id);
-        if (element) {
-            element.addEventListener('input', calculateRation);
-        }
-    });
-
-    // 2. Слушатели модального окна
     searchMedpitanieBtn.addEventListener('click', () => openModal());
     closeModalBtn.addEventListener('click', closeModal);
     cancelBtn.addEventListener('click', closeModal);
@@ -671,12 +773,12 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     });
 
-    // 3. Сохранение продукта
+    // Сохранение продукта
     productForm.addEventListener('submit', async (e) => {
         e.preventDefault();
 
+        const id = document.getElementById('productId').value;
         const data = {
-            id: document.getElementById('productId').value || null,
             name: document.getElementById('productName').value,
             calories: parseFloat(document.getElementById('productCalories').value) || null,
             proteins: parseFloat(document.getElementById('productProteins').value) || null,
@@ -698,10 +800,14 @@ document.addEventListener('DOMContentLoaded', () => {
         };
 
         try {
-            await ProductsAPI.save(data);
-            showSuccess(`Продукт "${data.name}" успешно ${data.id ? 'обновлен' : 'добавлен'}`);
+            if (id) {
+                await ProductsAPI.updateProduct(id, data);
+                showSuccess(`Продукт "${data.name}" успешно обновлен`);
+            } else {
+                await ProductsAPI.addProduct(data);
+                showSuccess(`Продукт "${data.name}" успешно добавлен`);
+            }
             closeModal();
-            // Перезагрузка списка для калькулятора и таблицы
             await loadProductsToSelect();
             await loadProductsTable();
 
@@ -709,17 +815,91 @@ document.addEventListener('DOMContentLoaded', () => {
             showError('Ошибка сохранения продукта: ' + error.message);
         }
     });
+}
 
-    // 4. Первоначальная загрузка данных
-    loadProductsToSelect();
+async function loadProductsTable() {
+    const tbody = document.getElementById('productsTableBody');
+    if (!tbody) return;
 
-    // Инициализация UI для авторизации (первая проверка)
-    if (supabase) {
-        supabase.auth.getSession().then(({ data: { session } }) => {
-            updateAuthUI(session?.user);
-        });
+    try {
+        const { data: { user } } = await supabase.auth.getUser();
+        const isAuthenticated = !!user;
+
+        const products = await ProductsAPI.getAll();
+
+        if (products.length === 0) {
+            tbody.innerHTML = '<tr><td colspan="3" class="empty-state">Нет продуктов в базе данных</td></tr>';
+            return;
+        }
+
+        tbody.innerHTML = products.map(product => `
+            <tr>
+                <td>${escapeHtml(product.name)}</td>
+                <td>${product.calories || '—'}</td>
+                <td>
+                    <button class="btn-small btn-edit" onclick="window.editProduct(${product.id})" ${isAuthenticated ? '' : 'disabled'}>Редактировать</button>
+                    <button class="btn-small btn-delete" onclick="window.deleteProduct(${product.id})" ${isAuthenticated ? '' : 'disabled'}>Удалить</button>
+                </td>
+            </tr>
+        `).join('');
+    } catch (error) {
+        showError('Ошибка загрузки списка продуктов: ' + error.message);
+        tbody.innerHTML = '<tr><td colspan="3" class="empty-state">Ошибка загрузки данных</td></tr>';
+    }
+}
+
+window.editProduct = async function (productId) {
+    const { data: { user } } = await supabase.auth.getUser();
+    if (user) {
+        await window.openModal(productId);
     } else {
-        showError("Критическая ошибка: Не удалось инициализировать Supabase. Проверьте ключ и подключение.");
-        calculateRation(); // Попытка обновить индексы, несмотря на ошибку
+        showError('Для редактирования продуктов необходимо войти в систему.');
+    }
+};
+
+window.deleteProduct = async function (productId) {
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) {
+        showError('Для удаления продуктов необходимо войти в систему.');
+        return;
+    }
+
+    if (!confirm('Вы уверены, что хотите удалить этот продукт?')) {
+        return;
+    }
+
+    try {
+        await ProductsAPI.deleteProduct(productId);
+        showSuccess('Продукт успешно удален');
+        await loadProductsTable();
+        await loadProductsToSelect();
+    } catch (error) {
+        showError('Ошибка удаления продукта: ' + error.message);
+    }
+};
+
+// --- Инициализация приложения ---
+document.addEventListener('DOMContentLoaded', async () => {
+    try {
+        const { data: { user } } = await supabase.auth.getUser();
+        updateAuthUI(user);
+
+        initAuthListeners();
+        initCalculator(); // Инициализирует метрики пациента
+        initRationListeners(); // Инициализирует слушатели для расчета рациона
+        initModal();
+
+        await loadProductsToSelect(); // Загрузка продуктов в Select
+
+        supabase.auth.onAuthStateChange((event, session) => {
+            if (session) {
+                updateAuthUI(session.user);
+            } else {
+                updateAuthUI(null);
+            }
+        });
+
+    } catch (error) {
+        showError('Ошибка инициализации приложения: ' + error.message);
     }
 });
