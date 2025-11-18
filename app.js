@@ -612,9 +612,7 @@ function calculateRation() {
 
     // Упрощенный расчет: содержит сообщение об изменении калоража
     const caloricChange = roundedResult.totalCalculatedKcal - dailyNeed;
-    const waterRoundingInfo = (roundedResult.requiredWaterMl % 10 !== 0) ? '' : `Вода округлена до ${roundedResult.requiredWaterMl} мл (кратное 10).`;
     const roundedStatus = `
-        <p class="metric-status status-subtext" style="margin-top: -10px;">Расчет с округлением ложек на прием до ${roundedScoopsPerMeal} шт. ${waterRoundingInfo}</p>
         <p class="metric-status status-caloric-change">
             <strong>Изменение калоража:</strong> ${caloricChange > 0 ? '+' : ''}${caloricChange.toFixed(0)} ккал. 
             (${roundToTwo((roundedResult.totalCalculatedKcal / dailyNeed) * 100)}% от потребности)
