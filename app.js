@@ -380,22 +380,37 @@ function updatePatientMetrics() {
  * @returns {object} Объект с точным и округленным результатом.
  */
 function runCalculation(product, dailyNeed, feedingsPerDay, concentrationType, scoopRounding) {
+    // Безопасное чтение числовых полей продукта, предотвращающее ошибки с NaN/null (Fix 2: Robustness)
+    const productCalories = product.calories || 0;
+    const productScoopWeight = product.scoopWeight || 0;
+    const productProteins = product.proteins || 0;
+    const productFats = product.fats || 0;
+    const productCarbs = product.carbs || 0;
+
+    const scoopsOrdinary = product.scoopsOrdinary || 0;
+    const waterOrdinary = product.waterOrdinary || 0;
+    const servingVolumeOrdinary = product.servingVolume_ordinary || 0;
+    const scoopsHyper = product.scoopsHyper || 0;
+    const waterHyper = product.waterHyper || 0;
+    const servingVolumeHyper = product.servingVolume_hyper || 0;
+    const packageAmount = product.packageAmount || 0;
+
     // 1. Определение параметров разведения
     const isOrdinary = concentrationType === 'ordinary';
 
     // Базовые метрики для одной ложки (Ккал, Б, Ж, У на 1 ложку)
-    const kcalPerScoop = (product.calories * product.scoopWeight) / 100;
-    const proteinPerScoop = (product.proteins * product.scoopWeight) / 100;
-    const fatPerScoop = (product.fats * product.scoopWeight) / 100;
-    const carbsPerScoop = (product.carbs * product.scoopWeight) / 100;
+    const kcalPerScoop = (productCalories * productScoopWeight) / 100;
+    const proteinPerScoop = (productProteins * productScoopWeight) / 100;
+    const fatPerScoop = (productFats * productScoopWeight) / 100;
+    const carbsPerScoop = (productCarbs * productScoopWeight) / 100;
 
     let scoopsPerServing, waterPerServing, servingVolume, baseServingDescription;
 
     if (isOrdinary) {
         // --- ОБЫЧНОЕ РАЗВЕДЕНИЕ (ОСНОВАНО НА ДАННЫХ ПРОДУКТА) ---
-        scoopsPerServing = product.scoopsOrdinary || 0;
-        waterPerServing = product.waterOrdinary || 0;
-        servingVolume = product.servingVolume_ordinary || 0;
+        scoopsPerServing = scoopsOrdinary;
+        waterPerServing = waterOrdinary;
+        servingVolume = servingVolumeOrdinary;
         baseServingDescription = `${scoopsPerServing} ложек на ${waterPerServing} мл воды`;
 
         // Проверка, что продукт настроен
@@ -404,32 +419,32 @@ function runCalculation(product, dailyNeed, feedingsPerDay, concentrationType, s
         }
 
     } else { // Hypercaloric
-        let useHyperParams = (product.scoopsHyper > 0 && product.waterHyper > 0 && product.servingVolume_hyper > 0);
+        let useHyperParams = (scoopsHyper > 0 && waterHyper > 0 && servingVolumeHyper > 0);
 
         if (useHyperParams) {
             // --- ГИПЕРКАЛОРИЧЕСКОЕ РАЗВЕДЕНИЕ (ИЗ БАЗЫ) ---
-            scoopsPerServing = product.scoopsHyper || 0;
-            waterPerServing = product.waterHyper || 0;
-            servingVolume = product.servingVolume_hyper || 0;
+            scoopsPerServing = scoopsHyper;
+            waterPerServing = waterHyper;
+            servingVolume = servingVolumeHyper;
             baseServingDescription = `${scoopsPerServing} ложек на ${waterPerServing} мл воды`;
 
         } else {
             // --- ГИПЕРКАЛОРИЧЕСКОЕ РАЗВЕДЕНИЕ (ФОЛЛБЭК 1.5x) ---
 
             // 1. Проверяем наличие обычного разведения для фоллбэка
-            if (product.scoopsOrdinary <= 0 || product.waterOrdinary <= 0 || product.servingVolume_ordinary <= 0) {
+            if (scoopsOrdinary <= 0 || waterOrdinary <= 0 || servingVolumeOrdinary <= 0) {
                 throw new Error(`Продукт "${product.name}" не настроен для гиперкалорического разведения и не имеет данных для фоллбэка (обычное разведение).`);
             }
 
             // 2. Увеличиваем сухую смесь в 1.5 раза
-            scoopsPerServing = roundToTwo(product.scoopsOrdinary * 1.5);
+            scoopsPerServing = roundToTwo(scoopsOrdinary * 1.5);
 
             // 3. Воду оставляем прежней
-            waterPerServing = product.waterOrdinary;
+            waterPerServing = waterOrdinary;
 
             // 4. Расчет нового объема готового раствора
             // Предполагаем, что объем порошка на ложку постоянен: (Объем об.р-ра - Вода об.р-ра) / Ложки об.р-ра
-            const powderVolumePerScoop = (product.servingVolume_ordinary - product.waterOrdinary) / product.scoopsOrdinary;
+            const powderVolumePerScoop = (servingVolumeOrdinary - waterOrdinary) / scoopsOrdinary;
             servingVolume = (scoopsPerServing * powderVolumePerScoop) + waterPerServing;
 
             baseServingDescription = `${scoopsPerServing.toFixed(1)} ложек на ${waterPerServing} мл воды (1.5x фоллбэк)`;
@@ -461,19 +476,16 @@ function runCalculation(product, dailyNeed, feedingsPerDay, concentrationType, s
     // Общее количество воды в рационе
     const totalWaterInRationExact = (requiredScoopsTotal / scoopsPerServing) * waterPerServing;
 
-    // Вода на один прием (мл/прием)
-    const requiredWaterPerMeal = totalWaterInRationExact / feedingsPerDay;
-
     // --- РАСЧЕТ ТОЧНЫХ СУТОЧНЫХ НУТРИЕНТОВ И ВЕСА СМЕСИ ---
-    const totalMixWeightGramsExact = requiredScoopsTotal * product.scoopWeight;
+    const totalMixWeightGramsExact = requiredScoopsTotal * productScoopWeight;
     const totalKcalExact = kcalPerScoop * requiredScoopsTotal;
     const totalProteinGramsExact = proteinPerScoop * requiredScoopsTotal;
     const totalFatGramsExact = fatPerScoop * requiredScoopsTotal;
     const totalCarbsGramsExact = carbsPerScoop * requiredScoopsTotal;
 
     // Расчет дней до окончания упаковки
-    const daysSupplyExact = (product.packageAmount > 0 && totalMixWeightGramsExact > 0)
-        ? (product.packageAmount / totalMixWeightGramsExact)
+    const daysSupplyExact = (packageAmount > 0 && totalMixWeightGramsExact > 0)
+        ? (packageAmount / totalMixWeightGramsExact)
         : 0;
 
     // NEW: Сколько банок нужно на месяц (30 дней)
@@ -503,7 +515,7 @@ function runCalculation(product, dailyNeed, feedingsPerDay, concentrationType, s
 
         // На один прием
         requiredScoopsPerMeal: requiredScoopsTotal / feedingsPerDay,
-        requiredWaterPerMeal: requiredWaterPerMeal,
+        requiredWaterPerMeal: totalWaterInRationExact / feedingsPerDay,
         volumePerMealMl: requiredVolumeMl / feedingsPerDay,
         kcalPerMeal: totalKcalExact / feedingsPerDay,
         proteinPerMeal: totalProteinGramsExact / feedingsPerDay,
@@ -542,15 +554,15 @@ function runCalculation(product, dailyNeed, feedingsPerDay, concentrationType, s
     const roundedVolumeMl = (servingVolume / scoopsPerServing) * roundedScoopsTotal;
 
     // --- РАСЧЕТ ОКРУГЛЕННЫХ СУТОЧНЫХ НУТРИЕНТОВ И ВЕСА СМЕСИ ---
-    const totalMixWeightGramsRounded = roundedScoopsTotal * product.scoopWeight;
+    const totalMixWeightGramsRounded = roundedScoopsTotal * productScoopWeight;
     const totalKcalRounded = kcalPerScoop * roundedScoopsTotal;
     const totalProteinGramsRounded = proteinPerScoop * roundedScoopsTotal;
     const totalFatGramsRounded = fatPerScoop * roundedScoopsTotal;
     const totalCarbsGramsRounded = carbsPerScoop * roundedScoopsTotal;
 
     // Расчет дней до окончания упаковки
-    const daysSupplyRounded = (product.packageAmount > 0 && totalMixWeightGramsRounded > 0)
-        ? (product.packageAmount / totalMixWeightGramsRounded)
+    const daysSupplyRounded = (packageAmount > 0 && totalMixWeightGramsRounded > 0)
+        ? (packageAmount / totalMixWeightGramsRounded)
         : 0;
 
     // NEW: Сколько банок нужно на месяц (30 дней)
@@ -668,12 +680,10 @@ function buildRationTableHTML(result) {
                 </tr>
                 <tr>
                     <td>Жиры</td>
-                    <td>${result.totalFatGrams.toFixed(1)} г</td>
-                </tr>
+                    <td>${result.totalFatGrams.toFixed(1)} г</td> </tr>
                 <tr>
                     <td>Углеводы</td>
-                    <td>${result.carbsPerCarbs.toFixed(1)} г</td>
-                </tr>
+                    <td>${result.totalCarbsGrams.toFixed(1)} г</td> </tr>
             </tbody>
 
             <thead>
@@ -834,6 +844,8 @@ function calculateRation() {
             window.lastCalculationResult = { exactResult, roundedResult, selectedProduct, dailyNeed, feedingsPerDay, totalFluidNeedMl };
 
         }).catch(error => {
+            // Исправлена ошибка в .catch, чтобы показать более подробную информацию, если возможно
+            console.error('Ошибка при получении данных продукта (Детали):', error);
             showError('Ошибка при получении данных продукта: ' + error.message);
         });
 
@@ -979,12 +991,13 @@ function initModal() {
 
         const productId = document.getElementById('productId').value;
         const product = {
+            // Добавлено || 0 для числовых полей, где это было пропущено ранее
             name: document.getElementById('productName').value,
-            calories: parseFloat(document.getElementById('productCalories').value),
-            proteins: parseFloat(document.getElementById('proteins').value),
+            calories: parseFloat(document.getElementById('productCalories').value) || 0,
+            proteins: parseFloat(document.getElementById('proteins').value) || 0,
             fats: parseFloat(document.getElementById('fats').value) || 0,
             carbs: parseFloat(document.getElementById('carbs').value) || 0,
-            scoopWeight: parseFloat(document.getElementById('scoopWeight').value),
+            scoopWeight: parseFloat(document.getElementById('scoopWeight').value) || 0,
             packageAmount: parseFloat(document.getElementById('packageAmount').value) || 0,
 
             // Обычное разведение
@@ -1099,7 +1112,7 @@ function exportToExcel() {
         ["Общая калорийность, ккал", exactResult.totalCalculatedKcal.toFixed(0), roundedResult.totalCalculatedKcal.toFixed(0)],
         ["Общее количество белка, г", exactResult.totalProteinGrams.toFixed(1), roundedResult.totalProteinGrams.toFixed(1)],
         ["Общее количество жиров, г", exactResult.totalFatGrams.toFixed(1), roundedResult.totalFatGrams.toFixed(1)],
-        ["Общее количество углеводов, г", exactResult.carbsPerMeal.toFixed(1), roundedResult.carbsPerMeal.toFixed(1)],
+        ["Общее количество углеводов, г", exactResult.totalCarbsGrams.toFixed(1), roundedResult.totalCarbsGrams.toFixed(1)],
         ["---", "---", "---"],
 
         // РАСХОД
