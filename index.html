@@ -139,10 +139,10 @@
         }
 
         /* Секции расчета рациона */
-        /* Используется в app.js для создания двухколоночной сетки результатов */
         .calculation-section {
+            /* ИЗМЕНЕНО: Теперь только один "Точный расчет" на всю ширину */
             display: grid;
-            grid-template-columns: 1fr 1fr;
+            grid-template-columns: 1fr;
             gap: 20px;
             align-items: start; /* Важно для выравнивания таблиц */
         }
@@ -179,8 +179,6 @@
 
 
         @media (max-width: 900px) {
-            /* 4. Таблицы расчета рациона в мобильной версии нужно разместить одну над другой */
-            /* Это правило уже было в коде, но я убедился, что оно работает для класса .calculation-section */
             .calculation-section {
                 grid-template-columns: 1fr;
             }
@@ -270,15 +268,15 @@
         <div class="input-group-grid">
             <div class="form-group">
                 <label for="patientWeight">Вес (кг):</label>
-                <input type="number" id="patientWeight" step="0.1" min="1" placeholder="Например, 70">
+                <input type="number" id="patientWeight" step="0.1" min="1">
             </div>
             <div class="form-group">
                 <label for="patientHeight">Рост (см):</label>
-                <input type="number" id="patientHeight" step="1" min="1" placeholder="Например, 175">
+                <input type="number" id="patientHeight" step="1" min="1">
             </div>
             <div class="form-group">
                 <label for="patientAge">Возраст (лет):</label>
-                <input type="number" id="patientAge" step="1" min="1" placeholder="Например, 45">
+                <input type="number" id="patientAge" step="1" min="1">
             </div>
             <div class="form-group">
                 <label for="patientGender">Пол:</label>
@@ -298,7 +296,7 @@
             </div>
             <div class="form-group">
                 <label for="proteinNeed">Потребность в белке (г/кг):</label>
-                <input type="number" id="proteinNeed" step="0.1" min="0" value="1.5">
+                <input type="number" id="proteinNeed" step="0.1" min="0.1" value="1.5">
             </div>
         </div>
 
@@ -319,7 +317,7 @@
                 <p class="metric-status" id="dailyNeedStatus">ОО * Фактор активности</p>
             </div>
             <div class="result-card">
-                <h5>Целевой Белок</h5>
+                <h5>Целевой Белок (ЦБ)</h5>
                 <p class="metric-value" id="proteinTargetResult">0 г/сутки</p>
                 <p class="metric-status" id="proteinTargetStatus">Вес * г/кг</p>
             </div>
@@ -351,18 +349,7 @@
                 <label for="feedingsPerDay">Количество приемов в сутки:</label>
                 <input type="number" id="feedingsPerDay" step="1" min="1" value="4">
             </div>
-            <div class="form-group">
-                <label for="scoopsPerMealRounding">Округление ложек на прием:</label>
-                <select id="scoopsPerMealRounding">
-                    <option value="0">Точный расчет</option>
-                    <option value="0.5">До 0.5 ложки</option>
-                    <option value="1">До 1 ложки</option>
-                </select>
-            </div>
         </div>
-
-        <button type="button" class="btn btn-primary" id="calculateBtn" style="margin-right: 10px;">Рассчитать</button>
-        <button type="button" class="btn btn-secondary" id="exportBtn" style="display: none;">Экспорт в Excel</button>
 
         <div id="rationResult">
             <p class="error-message-inline">Введите данные пациента, выберите смесь и количество приемов для расчета.</p>
@@ -416,8 +403,8 @@
             </div>
 
             <div class="form-group">
-                <label for="packageAmount">Вес упаковки (г) (для расчета расхода)</label>
-                <input type="number" id="packageAmount" step="1" min="0">
+                <label for="packageAmount">Вес упаковки (г)</label>
+                <input type="number" id="packageAmount" step="1" min="0" value="400">
             </div>
 
             <h3>Параметры разведения (для расчета)</h3>
