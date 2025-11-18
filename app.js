@@ -386,22 +386,25 @@ function performRationCalculation(totalDailyNeedKcal, product, concentrationType
 
         // Расчет воды: (Общее количество ложек / Ложек на порцию) * Вода на порцию
         const totalServingsBase = requiredPowderScoops / scoopsPerServing;
-        requiredWaterMl = totalServingsBase * waterPerServing;
+        const waterCalculated = totalServingsBase * waterPerServing;
+        requiredWaterMl = Math.round(waterCalculated); // ОКРУГЛЕНИЕ ВОДЫ
 
-        totalVolumeMl = requiredWaterMl + requiredPowderGrams;
+        totalVolumeMl = Math.round(requiredWaterMl + requiredPowderGrams); // ОКРУГЛЕНИЕ ОБЩЕГО ОБЪЕМА
 
         // Пересчитываем калорийность, исходя из округленного количества порошка
         totalCalculatedKcal = Math.round((kcalPer100g / 100) * requiredPowderGrams);
     } else {
         // --- ТОЧНЫЙ РАСЧЕТ ---
-        totalVolumeMl = Math.round(totalDailyNeedKcal / kcalPerMl);
+        const requiredTotalVolume = totalDailyNeedKcal / kcalPerMl;
+        totalVolumeMl = Math.round(requiredTotalVolume); // ОКРУГЛЕНИЕ ОБЩЕГО ОБЪЕМА
 
         // Расчет требуемого количества порошка: (Общий объем / Объем порции) * Вес порошка в порции
-        const requiredPowderVolume = totalVolumeMl / (volumePerServing / powderWeightPerServing);
-        requiredPowderGrams = requiredPowderVolume;
+        const powderWeightPerMl = powderWeightPerServing / volumePerServing;
+        requiredPowderGrams = totalVolumeMl * powderWeightPerMl;
         requiredPowderScoops = requiredPowderGrams / scoopWeight;
 
         requiredWaterMl = totalVolumeMl - requiredPowderGrams;
+        requiredWaterMl = Math.round(requiredWaterMl); // ОКРУГЛЕНИЕ ВОДЫ
         totalCalculatedKcal = totalDailyNeedKcal; // По определению
 
         scoopsPerMeal = requiredPowderScoops / numMeals; // Расчет ложек на прием
@@ -419,10 +422,10 @@ function performRationCalculation(totalDailyNeedKcal, product, concentrationType
     return {
         mealsPerDay: numMeals,
         kcalPerMl: kcalPerMl,
-        totalVolumeMl: Math.round(totalVolumeMl),
+        totalVolumeMl: totalVolumeMl, // уже округлено
         requiredPowderGrams: roundToTwo(requiredPowderGrams),
         requiredPowderScoops: roundToTwo(requiredPowderScoops),
-        requiredWaterMl: Math.round(requiredWaterMl),
+        requiredWaterMl: requiredWaterMl, // уже округлено
         volumePerMeal: roundToTwo(totalVolumeMl / numMeals),
         scoopsPerMeal: roundToTwo(scoopsPerMeal),
 
@@ -444,7 +447,6 @@ function performRationCalculation(totalDailyNeedKcal, product, concentrationType
 
 /**
  * Формирует HTML-таблицу для результатов расчета.
- * ОБНОВЛЕНО: Удалена колонка с единицами измерения.
  * @param {object} result - Результаты расчета от performRationCalculation.
  * @returns {string} HTML-код таблицы.
  */
@@ -576,14 +578,16 @@ function calculateRation() {
 
     // --- 6. Вывод результатов ---
 
-    const concentrationName = concentrationType === 'ordinary' ? 'Обычное' : 'Гиперкалорическое';
+    const concentrationName = concentrationType === 'ordinary'
+        ? 'Обычное'
+        : 'Гиперкалорическое (150% сухой смеси)';
 
     // Формируем блок с общей информацией о разведении (КОМПАКТНЫЙ ВЫВОД)
     const dilutionInfo = `
         <div class="results-section">
             <h4>📄 Расчет рациона: ${escapeHtml(selectedProduct.name)}</h4>
             <p class="ration-summary-compact">
-                <strong>Тип разведения:</strong> ${concentrationName} (${exactResult.kcalPerMl.toFixed(3)} ккал/мл). 
+                <strong>Тип разведения:</strong> ${concentrationName} (${exactResult.kcalPerMl.toFixed(2)} ккал/мл). 
                 <strong>Базовая порция:</strong> ${exactResult.scoopsPerServing} ложек на ${exactResult.waterPerServing} мл воды.
             </p>
         </div>

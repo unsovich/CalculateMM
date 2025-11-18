@@ -191,27 +191,51 @@
             .results-table tr {
                 margin-bottom: 15px;
                 border: 1px solid #ddd;
-            }
-            .results-table td {
-                text-align: right !important;
-                padding-left: 50%;
                 position: relative;
             }
-            .results-table td::before {
-                /* data-label теперь содержит и название, и единицу */
+
+            /* ФИКС: Скрытие дублирующегося текста в первой колонке */
+            .results-table tr td:first-child {
+                color: transparent !important;
+                height: 1px;
+                padding: 0;
+                overflow: hidden;
+            }
+
+            .results-table tr td:first-child::before {
+                /* Назначаем label из data-label на первое td */
                 content: attr(data-label);
                 position: absolute;
                 left: 10px;
                 width: calc(50% - 20px);
                 padding-right: 10px;
-                white-space: nowrap;
+                white-space: normal;
                 text-align: left;
                 font-weight: normal;
                 color: #555;
+                font-size: 1em;
+                top: 50%;
+                transform: translateY(-50%);
             }
+
+            .results-table tr td:nth-child(2) {
+                /* Второе td (значение) должно быть видимо и иметь отступ для label */
+                text-align: right !important;
+                padding-left: 50% !important;
+                padding-top: 10px;
+                padding-bottom: 10px;
+                color: #333;
+                font-size: 1em;
+            }
+
             .results-table .separator td {
+                /* Separator needs to be centered and fully visible */
                 text-align: center !important;
-                padding-left: 10px;
+                padding-left: 10px !important;
+                color: #333 !important;
+                font-size: 1em !important;
+                height: auto !important;
+                padding: 10px !important;
             }
         }
     </style>
@@ -309,12 +333,12 @@
                 <label for="concentrationType">Тип разведения:</label>
                 <select id="concentrationType">
                     <option value="ordinary">Обычное</option>
-                    <option value="hyper">Гиперкалорическое (150% порошка)</option>
+                    <option value="hyper">Гиперкалорическое (150% сухой смеси)</option>
                 </select>
             </div>
             <div class="form-group">
                 <label for="numMeals">Количество приемов в сутки:</label>
-                <input type="number" id="numMeals" step="1" min="1" value="4">
+                <input type="number" id="numMeals" step="1" min="1" value="6">
             </div>
         </div>
 
