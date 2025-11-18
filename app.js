@@ -984,10 +984,10 @@ function closeModal() {
 }
 
 function initModal() {
-    document.getElementById('openModalBtn').addEventListener('click', () => openModal());
+    // FIX: Удалена строка с document.getElementById('openModalBtn')
     document.getElementById('closeModalBtn').addEventListener('click', closeModal);
     document.getElementById('cancelBtn').addEventListener('click', closeModal);
-    document.getElementById('searchMedpitanieBtn').addEventListener('click', () => openModal()); // Привязка к новой кнопке
+    document.getElementById('searchMedpitanieBtn').addEventListener('click', () => openModal()); // Правильный ID кнопки
 
     // Закрытие по клику вне модального окна
     window.addEventListener('click', (event) => {
@@ -1128,7 +1128,7 @@ function exportToExcel() {
         ["Общая калорийность, ккал", safeToFixed(exactResult.totalCalculatedKcal, 0), safeToFixed(roundedResult.totalCalculatedKcal, 0)],
         ["Общее количество белка, г", safeToFixed(exactResult.totalProteinGrams, 1), safeToFixed(roundedResult.totalProteinGrams, 1)],
         ["Общее количество жиров, г", safeToFixed(exactResult.totalFatGrams, 1), safeToFixed(roundedResult.totalFatGrams, 1)],
-        ["Общее количество углеводов, г", safeToFixed(exactResult.totalCarbsGrams, 1), safeToFixed(roundedResult.totalCarbsGrams, 1)],
+        ["Общее количество углеводов, г", safeToFixed(exactResult.carbsPerMeal, 1), safeToFixed(roundedResult.carbsPerMeal, 1)],
         ["---", "---", "---"],
 
         // РАСХОД
@@ -1189,6 +1189,7 @@ document.addEventListener('DOMContentLoaded', async () => {
         });
 
     } catch (error) {
+        // Выводим ошибку, если произошла критическая проблема
         showError('Ошибка инициализации приложения: ' + error.message);
     }
 });
