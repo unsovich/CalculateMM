@@ -647,6 +647,22 @@ function runCalculation(product, dailyNeed, feedingsPerDay, concentrationType, s
  * @returns {string} HTML-код таблицы.
  */
 function buildRationTableHTML(result) {
+    // Внутренняя функция для создания строки таблицы с data-label для мобильной адаптивности
+    const createRow = (label, value, isHighlight = false, precision = 1) => `
+        <tr>
+            <td data-label="${label}">${label}</td>
+            <td class="${isHighlight ? 'highlight' : ''}">${safeToFixed(value, precision)}${label.includes('г') ? ' г' : label.includes('ккал') ? ' ккал' : label.includes('мл') ? ' мл' : label.includes('л') ? ' л' : label.includes('дн.') ? ' дн.' : label.includes('шт.') ? ' шт.' : ''}</td>
+        </tr>
+    `;
+
+    // Специальная функция для создания строки с единицами измерения
+    const createRowUnit = (label, value, unit, isHighlight = false, precision = 1) => `
+        <tr>
+            <td data-label="${label}">${label}</td>
+            <td class="${isHighlight ? 'highlight' : ''}">${safeToFixed(value, precision)} ${unit}</td>
+        </tr>
+    `;
+
     const tableHTML = `
         <table class="results-table">
             <thead>
@@ -655,34 +671,13 @@ function buildRationTableHTML(result) {
                 </tr>
             </thead>
             <tbody>
-                <tr>
-                    <td>Ложек</td>
-                    <td class="highlight">${roundToTwo(result.requiredScoopsPerMeal)} шт.</td>
-                </tr>
-                <tr>
-                    <td>Воды</td>
-                    <td class="highlight">${roundToTwo(result.requiredWaterPerMeal)} мл</td>
-                </tr>
-                <tr>
-                    <td>Готовый раствор (прибл.)</td>
-                    <td class="highlight">${safeToFixed(result.volumePerMealMl, 0)} мл</td>
-                </tr>
-                <tr>
-                    <td>Калорийность</td>
-                    <td>${safeToFixed(result.kcalPerMeal, 0)} ккал</td>
-                </tr>
-                <tr>
-                    <td>Белки</td>
-                    <td>${safeToFixed(result.proteinPerMeal, 1)} г</td>
-                </tr>
-                <tr>
-                    <td>Жиры</td>
-                    <td>${safeToFixed(result.fatPerMeal, 1)} г</td>
-                </tr>
-                <tr>
-                    <td>Углеводы</td>
-                    <td>${safeToFixed(result.carbsPerMeal, 1)} г</td>
-                </tr>
+                ${createRowUnit('Ложек', result.requiredScoopsPerMeal, 'шт.', true, 2)}
+                ${createRowUnit('Воды', result.requiredWaterPerMeal, 'мл', true, 0)}
+                ${createRowUnit('Готовый раствор (прибл.)', result.volumePerMealMl, 'мл', true, 0)}
+                ${createRowUnit('Калорийность', result.kcalPerMeal, 'ккал', false, 0)}
+                ${createRowUnit('Белки', result.proteinPerMeal, 'г', false, 1)}
+                ${createRowUnit('Жиры', result.fatPerMeal, 'г', false, 1)}
+                ${createRowUnit('Углеводы', result.carbsPerMeal, 'г', false, 1)}
             </tbody>
 
             <thead>
@@ -691,38 +686,17 @@ function buildRationTableHTML(result) {
                 </tr>
             </thead>
             <tbody>
+                ${createRowUnit('Вес сухой смеси', result.totalMixWeightGrams, 'г', true, 1)}
+                ${createRowUnit('Общее количество ложек', result.requiredScoopsTotal, 'шт.', false, 2)}
+                ${createRowUnit('Общее количество воды', result.requiredWaterMl, 'мл', true, 0)}
                 <tr>
-                    <td>Вес сухой смеси</td>
-                    <td class="highlight">${safeToFixed(result.totalMixWeightGrams, 1)} г</td>
-                </tr>
-                <tr>
-                    <td>Общее количество ложек</td>
-                    <td>${safeToFixed(result.requiredScoopsTotal, 2)} шт.</td>
-                </tr>
-                <tr>
-                    <td>Общее количество воды</td>
-                    <td class="highlight">${safeToFixed(result.requiredWaterMl, 0)} мл</td>
-                </tr>
-                <tr>
-                    <td>Общий объем раствора (прибл.)</td>
+                    <td data-label="Общий объем раствора (прибл.)">Общий объем раствора (прибл.)</td>
                     <td class="highlight">${safeToFixed(result.requiredVolumeMl, 0)} мл (${safeToFixed(result.dailyVolumeLitres, 2)} л)</td>
                 </tr>
-                <tr>
-                    <td>Калорийность</td>
-                    <td>${safeToFixed(result.totalCalculatedKcal, 0)} ккал</td>
-                </tr>
-                <tr>
-                    <td>Белки</td>
-                    <td>${safeToFixed(result.totalProteinGrams, 1)} г</td>
-                </tr>
-                <tr>
-                    <td>Жиры</td>
-                    <td>${safeToFixed(result.totalFatGrams, 1)} г</td>
-                </tr>
-                <tr>
-                    <td>Углеводы</td>
-                    <td>${safeToFixed(result.carbsGrams, 1)} г</td>
-                </tr>
+                ${createRowUnit('Калорийность', result.totalCalculatedKcal, 'ккал', false, 0)}
+                ${createRowUnit('Белки', result.totalProteinGrams, 'г', false, 1)}
+                ${createRowUnit('Жиры', result.totalFatGrams, 'г', false, 1)}
+                ${createRowUnit('Углеводы', result.totalCarbsGrams, 'г', false, 1)}
             </tbody>
 
             <thead>
@@ -732,11 +706,11 @@ function buildRationTableHTML(result) {
             </thead>
             <tbody>
                 <tr>
-                    <td>На сколько суток хватит банки смеси</td>
+                    <td data-label="На сколько суток хватит банки смеси">На сколько суток хватит банки смеси</td>
                     <td class="highlight">${result.daysSupply > 0 ? safeToFixed(result.daysSupply, 1) + ' дн.' : 'Н/Д (Вес упаковки не указан)'}</td>
                 </tr>
                 <tr>
-                    <td>Сколько банок нужно на месяц (30 дн.)</td>
+                    <td data-label="Сколько банок нужно на месяц (30 дн.)">Сколько банок нужно на месяц (30 дн.)</td>
                     <td class="highlight">${result.canSupplyPerMonth > 0 ? safeToFixed(result.canSupplyPerMonth, 1) + ' шт.' : 'Н/Д (Вес упаковки не указан)'}</td>
                 </tr>
             </tbody>
@@ -758,6 +732,7 @@ async function calculateRation() {
     const dailyNeed = parseFloat(document.getElementById('dailyNeedResult').dataset.dailyNeed);
     const totalFluidNeedMl = parseFloat(document.getElementById('fluidNeedResult').dataset.totalFluid) || 0;
     const selectedProductId = document.getElementById('selectedProduct').value;
+    // Используем ID feedingsPerDay (изменено в index.html)
     const feedingsPerDay = parseInt(document.getElementById('feedingsPerDay').value, 10);
     const concentrationType = document.getElementById('concentrationType').value;
     const scoopRounding = parseFloat(document.getElementById('scoopsPerMealRounding').value);
@@ -828,9 +803,9 @@ async function calculateRation() {
             </div>
         `;
 
-        // Выводим результаты в две секции
+        // 4. Используем class="calculation-section" для активации мобильной адаптации
         rationResultDiv.innerHTML = dilutionInfo +
-            '<div class="calculation-grid">' +
+            '<div class="calculation-section">' +
             // Колонка 1: Точный расчет
             '<div>' +
             '<h4>Точный расчет рациона</h4>' +
@@ -848,7 +823,7 @@ async function calculateRation() {
 
         rationResultDiv.style.display = 'block';
 
-        // --- 2. Расчет и вывод дополнительной жидкости ---
+        // --- 2. Расчет и вывод дополнительной жидкости (теперь всегда ниже таблиц) ---
 
         // Расчет для Точного рациона
         const totalWaterInRationExact = exactResult.requiredWaterMl;
@@ -1012,6 +987,7 @@ function initModal() {
     document.getElementById('openModalBtn').addEventListener('click', () => openModal());
     document.getElementById('closeModalBtn').addEventListener('click', closeModal);
     document.getElementById('cancelBtn').addEventListener('click', closeModal);
+    document.getElementById('searchMedpitanieBtn').addEventListener('click', () => openModal()); // Привязка к новой кнопке
 
     // Закрытие по клику вне модального окна
     window.addEventListener('click', (event) => {
@@ -1078,10 +1054,13 @@ function initRationListeners() {
 
     // Добавляем слушатель на все поля, влияющие на расчет, для автоматического обновления
     const calculationInputs = [
-        'selectedProduct', 'feedingsPerDay', 'scoopsPerMealRounding', 'concentrationType'
+        'selectedProduct', 'feedingsPerDay', 'scoopsPerMealRounding', 'concentrationType' // ID feedingsPerDay (ранее numMeals)
     ];
     calculationInputs.forEach(id => {
-        document.getElementById(id).addEventListener('change', calculateRation);
+        const element = document.getElementById(id);
+        if (element) {
+            element.addEventListener('change', calculateRation);
+        }
     });
 
     // Слушатели на параметры пациента
@@ -1089,8 +1068,11 @@ function initRationListeners() {
         'patientWeight', 'patientHeight', 'patientAge', 'patientGender', 'activityFactor', 'proteinNeed'
     ];
     patientInputs.forEach(id => {
-        document.getElementById(id).addEventListener('change', updatePatientMetrics);
-        document.getElementById(id).addEventListener('input', updatePatientMetrics);
+        const element = document.getElementById(id);
+        if (element) {
+            element.addEventListener('change', updatePatientMetrics);
+            element.addEventListener('input', updatePatientMetrics);
+        }
     });
 
     document.getElementById('exportBtn').addEventListener('click', exportToExcel);
@@ -1130,7 +1112,7 @@ function exportToExcel() {
 
         // НА ОДИН ПРИЕМ
         ["Ложек на прием, шт.", roundToTwo(exactResult.requiredScoopsPerMeal), roundToTwo(roundedResult.requiredScoopsPerMeal)],
-        ["Воды на прием, мл", roundToTwo(exactResult.requiredWaterPerMeal), roundToTwo(roundedResult.requiredWaterPerMeal)],
+        ["Воды на прием, мл", safeToFixed(exactResult.requiredWaterPerMeal, 0), safeToFixed(roundedResult.requiredWaterPerMeal, 0)],
         ["Объем готового р-ра на прием, мл", safeToFixed(exactResult.volumePerMealMl, 0), safeToFixed(roundedResult.volumePerMealMl, 0)],
         ["Калорийность на прием, ккал", safeToFixed(exactResult.kcalPerMeal, 0), safeToFixed(roundedResult.kcalPerMeal, 0)],
         ["Белки на прием, г", safeToFixed(exactResult.proteinPerMeal, 1), safeToFixed(roundedResult.proteinPerMeal, 1)],
@@ -1145,8 +1127,8 @@ function exportToExcel() {
         ["Общий объем раствора, мл", safeToFixed(exactResult.requiredVolumeMl, 0), safeToFixed(roundedResult.requiredVolumeMl, 0)],
         ["Общая калорийность, ккал", safeToFixed(exactResult.totalCalculatedKcal, 0), safeToFixed(roundedResult.totalCalculatedKcal, 0)],
         ["Общее количество белка, г", safeToFixed(exactResult.totalProteinGrams, 1), safeToFixed(roundedResult.totalProteinGrams, 1)],
-        ["Общее количество жиров, г", safeToFixed(exactResult.fatGrams, 1), safeToFixed(roundedResult.totalFatGrams, 1)],
-        ["Общее количество углеводов, г", safeToFixed(exactResult.carbsGrams, 1), safeToFixed(roundedResult.totalCarbsGrams, 1)],
+        ["Общее количество жиров, г", safeToFixed(exactResult.totalFatGrams, 1), safeToFixed(roundedResult.totalFatGrams, 1)],
+        ["Общее количество углеводов, г", safeToFixed(exactResult.totalCarbsGrams, 1), safeToFixed(roundedResult.totalCarbsGrams, 1)],
         ["---", "---", "---"],
 
         // РАСХОД
@@ -1170,7 +1152,10 @@ function exportToExcel() {
     const wb = XLSX.utils.book_new();
     XLSX.utils.book_append_sheet(wb, ws, "Расчет рациона");
 
-    const patientName = document.getElementById('patientName') ? document.getElementById('patientName').value : 'Пациент';
+    // Ищем поле для имени пациента, если оно есть, используем его
+    const patientNameElement = document.getElementById('patientName');
+    const patientName = (patientNameElement && patientNameElement.value) ? patientNameElement.value : 'Пациент';
+
     const filename = `Расчет_${selectedProduct.name.replace(/\s/g, '_')}_${patientName}_${new Date().toLocaleDateString()}.xlsx`;
 
     XLSX.writeFile(wb, filename);
