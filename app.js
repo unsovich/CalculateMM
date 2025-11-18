@@ -387,7 +387,9 @@ function performRationCalculation(totalDailyNeedKcal, product, concentrationType
         // Расчет воды: (Общее количество ложек / Ложек на порцию) * Вода на порцию
         const totalServingsBase = requiredPowderScoops / scoopsPerServing;
         const waterCalculated = totalServingsBase * waterPerServing;
-        requiredWaterMl = Math.round(waterCalculated); // ОКРУГЛЕНИЕ ВОДЫ
+
+        // ИЗМЕНЕНИЕ: Округление воды до десятков в упрощенном расчете
+        requiredWaterMl = Math.round(waterCalculated / 10) * 10;
 
         totalVolumeMl = Math.round(requiredWaterMl + requiredPowderGrams); // ОКРУГЛЕНИЕ ОБЩЕГО ОБЪЕМА
 
@@ -404,7 +406,7 @@ function performRationCalculation(totalDailyNeedKcal, product, concentrationType
         requiredPowderScoops = requiredPowderGrams / scoopWeight;
 
         requiredWaterMl = totalVolumeMl - requiredPowderGrams;
-        requiredWaterMl = Math.round(requiredWaterMl); // ОКРУГЛЕНИЕ ВОДЫ
+        requiredWaterMl = Math.round(requiredWaterMl); // ОКРУГЛЕНИЕ ВОДЫ (до целого)
         totalCalculatedKcal = totalDailyNeedKcal; // По определению
 
         scoopsPerMeal = requiredPowderScoops / numMeals; // Расчет ложек на прием
@@ -419,6 +421,8 @@ function performRationCalculation(totalDailyNeedKcal, product, concentrationType
     const fatKcal = Math.round(fatDailyGrams * 9);
     const carbKcal = Math.round(carbDailyGrams * 4);
 
+    const waterPerMeal = requiredWaterMl / numMeals; // Расчет объема воды на прием
+
     return {
         mealsPerDay: numMeals,
         kcalPerMl: kcalPerMl,
@@ -428,6 +432,7 @@ function performRationCalculation(totalDailyNeedKcal, product, concentrationType
         requiredWaterMl: requiredWaterMl, // уже округлено
         volumePerMeal: roundToTwo(totalVolumeMl / numMeals),
         scoopsPerMeal: roundToTwo(scoopsPerMeal),
+        waterPerMeal: roundToTwo(waterPerMeal), // ДОБАВЛЕНО
 
         proteinDailyGrams: roundToTwo(proteinDailyGrams),
         fatDailyGrams: roundToTwo(fatDailyGrams),
@@ -461,7 +466,7 @@ function buildRationTableHTML(result) {
             </thead>
             <tbody>
                 <tr>
-                    <td data-label="Количество приемов (шт/сутки)">Количество приемов пищи (шт/сутки)</td>
+                    <td data-label="Количество приемов (шт/сутки)">Количество приемов (шт/сутки)</td>
                     <td class="highlight">${result.mealsPerDay}</td>
                 </tr>
                 <tr>
@@ -475,6 +480,10 @@ function buildRationTableHTML(result) {
                 <tr>
                     <td data-label="Ложек на прием (шт)">Ложек на прием (шт)</td>
                     <td>${result.scoopsPerMeal}</td>
+                </tr>
+                <tr>
+                    <td data-label="Воды на прием (мл)">Объем воды на прием (мл)</td>
+                    <td>${result.waterPerMeal}</td>
                 </tr>
                 <tr class="separator">
                     <td colspan="2">**СУТОЧНЫЙ РАЦИОН**</td>
@@ -603,8 +612,9 @@ function calculateRation() {
 
     // Упрощенный расчет: содержит сообщение об изменении калоража
     const caloricChange = roundedResult.totalCalculatedKcal - dailyNeed;
+    const waterRoundingInfo = (roundedResult.requiredWaterMl % 10 !== 0) ? '' : `Вода округлена до ${roundedResult.requiredWaterMl} мл (кратное 10).`;
     const roundedStatus = `
-        <p class="metric-status status-subtext" style="margin-top: -10px;">Расчет с округлением ложек на прием до ${roundedScoopsPerMeal} шт.</p>
+        <p class="metric-status status-subtext" style="margin-top: -10px;">Расчет с округлением ложек на прием до ${roundedScoopsPerMeal} шт. ${waterRoundingInfo}</p>
         <p class="metric-status status-caloric-change">
             <strong>Изменение калоража:</strong> ${caloricChange > 0 ? '+' : ''}${caloricChange.toFixed(0)} ккал. 
             (${roundToTwo((roundedResult.totalCalculatedKcal / dailyNeed) * 100)}% от потребности)
