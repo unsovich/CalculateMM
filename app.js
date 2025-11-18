@@ -217,8 +217,12 @@ var ProductsAPI = {
             .eq('id', numericId)
             .single(); // Ожидаем один результат
         if (error) {
-            if (error.code !== 'PGRST116') return null; // Ошибка "не найдено"
-            throw new Error(error.message);
+            // PGRST116: No rows returned (стандартный случай "не найдено")
+            if (error.code !== 'PGRST116') {
+                // Если это другая ошибка (проблема с БД), бросаем ее
+                throw new Error(error.message);
+            }
+            return null; // Возвращаем null, если продукт не найден
         }
         return data;
     },
@@ -407,7 +411,7 @@ function updatePatientMetrics() {
  * @returns {object} Объект с точным и округленным результатом.
  */
 function runCalculation(product, dailyNeed, feedingsPerDay, concentrationType, scoopRounding) {
-    // Безопасное чтение числовых полей продукта, предотвращающее ошибки с NaN/null (Fix 2: Robustness)
+    // Безопасное чтение числовых полей продукта, предотвращающее ошибки с NaN/null
     const productCalories = product.calories || 0;
     const productScoopWeight = product.scoopWeight || 0;
     const productProteins = product.proteins || 0;
@@ -717,7 +721,7 @@ function buildRationTableHTML(result) {
                 </tr>
                 <tr>
                     <td>Углеводы</td>
-                    <td>${safeToFixed(result.totalCarbsGrams, 1)} г</td>
+                    <td>${safeToFixed(result.carbsGrams, 1)} г</td>
                 </tr>
             </tbody>
 
@@ -741,8 +745,8 @@ function buildRationTableHTML(result) {
     return tableHTML;
 }
 
-
-function calculateRation() {
+// ДОБАВЛЕН async
+async function calculateRation() {
     const rationResultDiv = document.getElementById('rationResult');
     const additionalFluidResultDiv = document.getElementById('additionalFluidResult');
     rationResultDiv.style.display = 'none';
@@ -758,134 +762,129 @@ function calculateRation() {
     const concentrationType = document.getElementById('concentrationType').value;
     const scoopRounding = parseFloat(document.getElementById('scoopsPerMealRounding').value);
 
+    // Проверка на минимальные условия для расчета
     if (dailyNeed <= 0 || !selectedProductId || feedingsPerDay <= 0) {
         return;
     }
 
-    let selectedProduct = null;
     try {
-        // Асинхронный вызов, чтобы получить полную информацию о продукте
-        ProductsAPI.getById(selectedProductId).then(product => {
-            selectedProduct = product;
+        // Использование await для получения данных продукта. Это ловит ошибки от ProductsAPI
+        const selectedProduct = await ProductsAPI.getById(selectedProductId);
 
-            if (!selectedProduct) {
-                showError('Не удалось найти данные выбранного продукта.');
-                return;
-            }
+        if (!selectedProduct) {
+            showError('Не удалось найти данные выбранного продукта.');
+            return;
+        }
 
-            const { exact: exactResult, rounded: roundedResult, roundedScoopsPerMeal } = runCalculation(
-                selectedProduct,
-                dailyNeed,
-                feedingsPerDay,
-                concentrationType,
-                scoopRounding
-            );
+        // Выполняем расчет
+        const { exact: exactResult, rounded: roundedResult, roundedScoopsPerMeal } = runCalculation(
+            selectedProduct,
+            dailyNeed,
+            feedingsPerDay,
+            concentrationType,
+            scoopRounding
+        );
 
 
-            // --- 1. Вывод результатов рациона ---
+        // --- 1. Вывод результатов рациона ---
 
-            const concentrationName = concentrationType === 'ordinary'
-                ? 'Обычное разведение' // Убрано "(1 Ккал/мл)"
-                : 'Гиперкалорическое разведение';
+        const concentrationName = concentrationType === 'ordinary'
+            ? 'Обычное разведение'
+            : 'Гиперкалорическое разведение';
 
-            // Формируем блок с общей информацией о разведении
-            const dilutionInfo = `
-                <div class="results-section">
-                    <h4>📄 Расчет рациона: ${escapeHtml(selectedProduct.name)}</h4>
-                    <p class="ration-summary-compact">
-                        <strong>Тип разведения:</strong> ${concentrationName}.
-                        <strong>Концентрация:</strong> ${safeToFixed(exactResult.kcalPerMl, 2)} ккал/мл.
-                        <strong>Базовая порция:</strong> ${exactResult.baseServingDescription}.
-                        </p>
-                </div>
-            `;
+        // Формируем блок с общей информацией о разведении
+        const dilutionInfo = `
+            <div class="results-section">
+                <h4>📄 Расчет рациона: ${escapeHtml(selectedProduct.name)}</h4>
+                <p class="ration-summary-compact">
+                    <strong>Тип разведения:</strong> ${concentrationName}.
+                    <strong>Концентрация:</strong> ${safeToFixed(exactResult.kcalPerMl, 2)} ккал/мл.
+                    <strong>Базовая порция:</strong> ${exactResult.baseServingDescription}.
+                </p>
+            </div>
+        `;
 
-            // --- Структуры для выравнивания таблиц ---
+        // --- Структуры для выравнивания таблиц ---
 
-            // Точный расчет: использует пустой элемент для компенсации высоты блока статуса
-            const exactStatus = `
-                <div class="status-block-wrapper">
-                    <p class="metric-status status-subtext">Расчет для полного удовлетворения потребности в Ккал</p>
-                    <p class="metric-status status-caloric-change empty-placeholder">&nbsp;</p>
-                </div>
-            `;
+        // Точный расчет:
+        const exactStatus = `
+            <div class="status-block-wrapper">
+                <p class="metric-status status-subtext">Расчет для полного удовлетворения потребности в Ккал</p>
+                <p class="metric-status status-caloric-change empty-placeholder">&nbsp;</p>
+            </div>
+        `;
 
-            // Упрощенный расчет: содержит сообщение об изменении калоража
-            const caloricChange = roundedResult.totalCalculatedKcal - dailyNeed;
-            const waterRoundingInfo = (roundedResult.requiredWaterMl % 10 !== 0) ? '' : `Вода округлена до ${safeToFixed(roundedResult.requiredWaterMl, 0)} мл (кратное 10).`;
+        // Упрощенный расчет: содержит сообщение об изменении калоража
+        const caloricChange = roundedResult.totalCalculatedKcal - dailyNeed;
+        const waterRoundingInfo = (roundedResult.requiredWaterMl % 10 !== 0) ? '' : `Вода округлена до ${safeToFixed(roundedResult.requiredWaterMl, 0)} мл (кратное 10).`;
 
-            const roundedStatus = `
-                <div class="status-block-wrapper">
-                    <p class="metric-status status-subtext">Расчет с округлением ложек на прием до ${safeToFixed(roundedScoopsPerMeal, 2)} шт. ${waterRoundingInfo}</p>
-                    <p class="metric-status status-caloric-change">
-                        <strong>Изменение калоража:</strong> ${caloricChange > 0 ? '+' : ''}${safeToFixed(caloricChange, 0)} ккал.
-                        (${roundToTwo((roundedResult.totalCalculatedKcal / dailyNeed) * 100)}% от потребности)
-                    </p>
-                </div>
-            `;
+        const roundedStatus = `
+            <div class="status-block-wrapper">
+                <p class="metric-status status-subtext">Расчет с округлением ложек на прием до ${safeToFixed(roundedScoopsPerMeal, 2)} шт. ${waterRoundingInfo}</p>
+                <p class="metric-status status-caloric-change">
+                    <strong>Изменение калоража:</strong> ${caloricChange > 0 ? '+' : ''}${safeToFixed(caloricChange, 0)} ккал.
+                    (${roundToTwo((roundedResult.totalCalculatedKcal / dailyNeed) * 100)}% от потребности)
+                </p>
+            </div>
+        `;
 
-            // Выводим результаты в две секции
-            rationResultDiv.innerHTML = dilutionInfo +
-                '<div class="calculation-grid">' +
-                // Колонка 1: Точный расчет
-                '<div>' +
-                '<h4>Точный расчет рациона</h4>' +
-                exactStatus +
-                buildRationTableHTML(exactResult) +
-                '</div>' +
+        // Выводим результаты в две секции
+        rationResultDiv.innerHTML = dilutionInfo +
+            '<div class="calculation-grid">' +
+            // Колонка 1: Точный расчет
+            '<div>' +
+            '<h4>Точный расчет рациона</h4>' +
+            exactStatus +
+            buildRationTableHTML(exactResult) +
+            '</div>' +
 
-                // Колонка 2: Упрощенный расчет
-                '<div>' +
-                '<h4>Упрощенный расчет рациона (Округление)</h4>' +
-                roundedStatus +
-                buildRationTableHTML(roundedResult) +
-                '</div>' +
-                '</div>';
+            // Колонка 2: Упрощенный расчет
+            '<div>' +
+            '<h4>Упрощенный расчет рациона (Округление)</h4>' +
+            roundedStatus +
+            buildRationTableHTML(roundedResult) +
+            '</div>' +
+            '</div>';
 
-            rationResultDiv.style.display = 'block';
+        rationResultDiv.style.display = 'block';
 
-            // --- 2. Расчет и вывод дополнительной жидкости (перенесен в самый низ) ---
+        // --- 2. Расчет и вывод дополнительной жидкости ---
 
-            // Расчет для Точного рациона
-            const totalWaterInRationExact = exactResult.requiredWaterMl;
-            const additionalFluidExact = Math.max(0, totalFluidNeedMl - totalWaterInRationExact);
+        // Расчет для Точного рациона
+        const totalWaterInRationExact = exactResult.requiredWaterMl;
+        const additionalFluidExact = Math.max(0, totalFluidNeedMl - totalWaterInRationExact);
 
-            // Расчет для Округленного рациона
-            const totalWaterInRationRounded = roundedResult.requiredWaterMl;
-            const additionalFluidRounded = Math.max(0, totalFluidNeedMl - totalWaterInRationRounded);
+        // Расчет для Округленного рациона
+        const totalWaterInRationRounded = roundedResult.requiredWaterMl;
+        const additionalFluidRounded = Math.max(0, totalFluidNeedMl - totalWaterInRationRounded);
 
-            // Формирование HTML для дополнительной жидкости
-            additionalFluidResultDiv.innerHTML = `
-                <div class="results-section fluid-section">
-                    <h4>💧 Расчет дополнительной жидкости</h4>
-                    <div class="patient-metrics">
-                        <div class="result-card">
-                            <h5>Для Точного Рациона</h5>
-                            <p class="metric-value">${safeToFixed(additionalFluidExact, 0)} мл</p>
-                            <p class="metric-status">ЖВО (${safeToFixed(totalFluidNeedMl, 0)} мл) - Вода в смеси (${safeToFixed(totalWaterInRationExact, 0)} мл)</p>
-                        </div>
-                        <div class="result-card">
-                            <h5>Для Округленного Рациона</h5>
-                            <p class="metric-value">${safeToFixed(additionalFluidRounded, 0)} мл</p>
-                            <p class="metric-status">ЖВО (${safeToFixed(totalFluidNeedMl, 0)} мл) - Вода в смеси (${safeToFixed(totalWaterInRationRounded, 0)} мл)</p>
-                        </div>
+        // Формирование HTML для дополнительной жидкости
+        additionalFluidResultDiv.innerHTML = `
+            <div class="results-section fluid-section">
+                <h4>💧 Расчет дополнительной жидкости</h4>
+                <div class="patient-metrics">
+                    <div class="result-card">
+                        <h5>Для Точного Рациона</h5>
+                        <p class="metric-value">${safeToFixed(additionalFluidExact, 0)} мл</p>
+                        <p class="metric-status">ЖВО (${safeToFixed(totalFluidNeedMl, 0)} мл) - Вода в смеси (${safeToFixed(totalWaterInRationExact, 0)} мл)</p>
+                    </div>
+                    <div class="result-card">
+                        <h5>Для Округленного Рациона</h5>
+                        <p class="metric-value">${safeToFixed(additionalFluidRounded, 0)} мл</p>
+                        <p class="metric-status">ЖВО (${safeToFixed(totalFluidNeedMl, 0)} мл) - Вода в смеси (${safeToFixed(totalWaterInRationRounded, 0)} мл)</p>
                     </div>
                 </div>
-            `;
-            additionalFluidResultDiv.style.display = 'block'; // Показываем в конце
+            </div>
+        `;
+        additionalFluidResultDiv.style.display = 'block'; // Показываем в конце
 
 
-            exportBtn.style.display = 'inline-block';
-            window.lastCalculationResult = { exactResult, roundedResult, selectedProduct, dailyNeed, feedingsPerDay, totalFluidNeedMl };
+        exportBtn.style.display = 'inline-block';
+        window.lastCalculationResult = { exactResult, roundedResult, selectedProduct, dailyNeed, feedingsPerDay, totalFluidNeedMl };
 
-        }).catch(error => {
-            // Исправлена ошибка в .catch, чтобы показать более подробную информацию, если возможно
-            console.error('Ошибка при получении данных продукта (Детали):', error);
-            showError('Ошибка при получении данных продукта: ' + (error.message || 'Неизвестная ошибка (проверьте консоль)'));
-        });
-
-    } catch (error) {
-        showError('Ошибка расчета рациона: ' + error.message);
+    } catch (error) { // <<< Упрощенный блок catch, ловит все ошибки
+        console.error('Критическая ошибка расчета рациона (Детали):', error);
+        showError('Критическая ошибка расчета: ' + (error.message || 'Неизвестная ошибка (проверьте консоль)'));
     }
 }
 
@@ -1146,8 +1145,8 @@ function exportToExcel() {
         ["Общий объем раствора, мл", safeToFixed(exactResult.requiredVolumeMl, 0), safeToFixed(roundedResult.requiredVolumeMl, 0)],
         ["Общая калорийность, ккал", safeToFixed(exactResult.totalCalculatedKcal, 0), safeToFixed(roundedResult.totalCalculatedKcal, 0)],
         ["Общее количество белка, г", safeToFixed(exactResult.totalProteinGrams, 1), safeToFixed(roundedResult.totalProteinGrams, 1)],
-        ["Общее количество жиров, г", safeToFixed(exactResult.totalFatGrams, 1), safeToFixed(roundedResult.totalFatGrams, 1)],
-        ["Общее количество углеводов, г", safeToFixed(exactResult.totalCarbsGrams, 1), safeToFixed(roundedResult.totalCarbsGrams, 1)],
+        ["Общее количество жиров, г", safeToFixed(exactResult.fatGrams, 1), safeToFixed(roundedResult.totalFatGrams, 1)],
+        ["Общее количество углеводов, г", safeToFixed(exactResult.carbsGrams, 1), safeToFixed(roundedResult.totalCarbsGrams, 1)],
         ["---", "---", "---"],
 
         // РАСХОД
