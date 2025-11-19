@@ -62,6 +62,7 @@
 
         /* Стили для метрик пациента */
         .patient-metrics, .input-group-grid {
+            /* 4 колонки для десктопа, так как убрали Целевой белок */
             display: grid;
             grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
             gap: 20px;
@@ -76,7 +77,7 @@
         }
 
         .metric-value {
-            font-size: 2em;
+            font-size: 1.5em;
             font-weight: bold;
             color: #2980b9;
             margin: 5px 0;
@@ -244,24 +245,9 @@
 
 <body>
 <div class="container">
-    <h1>Расчет рациона медицинского питания</h1>
+    <h2>Расчет рациона медицинского питания</h2>
 
     <div id="errorMessage" style="display: none;"></div>
-
-    <div id="authSection">
-        <h2>Аутентификация и управление продуктами</h2>
-        <p id="authStatus">Статус: Анонимный</p>
-        <form id="authForm" class="auth-form">
-            <input type="email" id="authEmail" placeholder="Email" required>
-            <input type="password" id="authPassword" placeholder="Пароль" required>
-            <button type="submit" class="btn btn-primary">Войти</button>
-            <button type="button" class="btn btn-secondary" id="signUpBtn">Регистрация</button>
-        </form>
-        <button type="button" class="btn btn-secondary" id="logoutBtn" style="display: none; margin-top: 10px;">Выйти</button>
-        <button type="button" class="btn btn-primary" id="searchMedpitanieBtn" style="margin-top: 10px;">
-            Управление продуктами
-        </button>
-    </div>
 
     <div class="results-section">
         <h2>Данные пациента и расчет потребности</h2>
@@ -324,6 +310,11 @@
         <h2>Расчет рациона</h2>
         <div class="input-group-grid">
             <div class="form-group">
+                <label for="requiredMixKcal">Потребность в смеси (ККАЛ):</label>
+                <input type="number" id="requiredMixKcal" step="1" min="0" value="0">
+            </div>
+
+            <div class="form-group">
                 <label for="selectedProduct">Выбранная смесь:</label>
                 <select id="selectedProduct">
                     <option value="">-- Загрузка продуктов... --</option>
@@ -332,7 +323,7 @@
             <div class="form-group">
                 <label for="concentrationType">Тип разведения:</label>
                 <select id="concentrationType">
-                    <option value="ordinary">Обычное</option>
+                    <option value="ordinary">Изокалорическое</option>
                     <option value="hyper">Гиперкалорическое (150% сухой смеси)</option>
                 </select>
             </div>
@@ -343,12 +334,28 @@
         </div>
 
         <div id="rationResult">
-            <p class="error-message-inline">Введите данные пациента, выберите смесь и количество приемов для расчета.</p>
+            <p class="error-message-inline">Введите потребность в смеси (ККАЛ), выберите смесь и количество приемов для расчета.</p>
         </div>
     </div>
 
     <div id="additionalFluidResult">
     </div>
+
+    <div id="authSection">
+        <h2>Аутентификация и управление продуктами</h2>
+        <p id="authStatus">Статус: Анонимный</p>
+        <form id="authForm" class="auth-form">
+            <input type="email" id="authEmail" placeholder="Email" required>
+            <input type="password" id="authPassword" placeholder="Пароль" required>
+            <button type="submit" class="btn btn-primary">Войти</button>
+            <button type="button" class="btn btn-secondary" id="signUpBtn">Регистрация</button>
+        </form>
+        <button type="button" class="btn btn-secondary" id="logoutBtn" style="display: none; margin-top: 10px;">Выйти</button>
+        <button type="button" class="btn btn-primary" id="searchMedpitanieBtn" style="margin-top: 10px;">
+            Управление продуктами
+        </button>
+    </div>
+
 
 </div>
 
@@ -401,7 +408,7 @@
             <h3>Параметры разведения (для расчета)</h3>
             <div class="input-group-grid three-columns">
                 <div class="form-group">
-                    <label for="scoopsOrdinary">Ложек на порцию (обычное)</label>
+                    <label for="scoopsOrdinary">Ложек на порцию (изокалорическое)</label>
                     <input type="number" id="scoopsOrdinary" step="0.1" min="0">
                 </div>
                 <div class="form-group">
@@ -432,7 +439,7 @@
             <div class="form-group">
                 <label for="productApplicationMethod">Метод применения (краткое описание)</label>
                 <textarea id="productApplicationMethod" rows="2"
-                          placeholder="Обычное разведение: N ложек на M мл воды."></textarea>
+                          placeholder="Изокалорическое разведение: N ложек на M мл воды."></textarea>
             </div>
 
             <div class="form-group">

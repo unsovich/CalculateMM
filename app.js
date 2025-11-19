@@ -507,7 +507,7 @@ function buildRationTableHTML(result) {
         <table class="results-table">
             <thead>
                 <tr>
-                    <th colspan="2">На один прием (Количество приемов: ${result.feedingsPerDay})</th>
+                    <th colspan="2">Количество на один прием</th>
                 </tr>
             </thead>
             <tbody>
@@ -522,7 +522,7 @@ function buildRationTableHTML(result) {
 
             <thead>
                 <tr>
-                    <th colspan="2">На сутки (Итого)</th>
+                    <th colspan="2">Количество на сутки</th>
                 </tr>
             </thead>
             <tbody>
@@ -568,14 +568,18 @@ async function calculateRation() {
     if (additionalFluidResultDiv) additionalFluidResultDiv.style.display = 'none';
     if (exportBtn) exportBtn.style.display = 'none';
 
-    const dailyNeed = parseFloat(document.getElementById('dailyNeedResult')?.dataset.dailyNeed) || 0;
+    // Читаем метрическую потребность (для справки и экспорта)
+    const dailyNeedMetric = parseFloat(document.getElementById('dailyNeedResult')?.dataset.dailyNeed) || 0;
+    // Читаем потребность для расчета смеси (НОВЫЙ ИСТОЧНИК ДАННЫХ)
+    const requiredMixKcal = parseFloat(document.getElementById('requiredMixKcal')?.value) || 0;
+
     const totalFluidNeedMl = parseFloat(document.getElementById('fluidNeedResult')?.dataset.totalFluid) || 0;
     const selectedProductId = document.getElementById('selectedProduct')?.value;
     const feedingsPerDay = parseInt(document.getElementById('feedingsPerDay')?.value, 10) || 0;
     const concentrationType = document.getElementById('concentrationType')?.value || 'ordinary';
-    // УДАЛЕНО: const scoopRounding = parseFloat(document.getElementById('scoopsPerMealRounding')?.value) || 0;
 
-    if (dailyNeed <= 0 || !selectedProductId || feedingsPerDay <= 0) {
+    // ВАЛИДАЦИЯ по новому полю
+    if (requiredMixKcal <= 0 || !selectedProductId || feedingsPerDay <= 0) {
         return;
     }
 
@@ -587,17 +591,17 @@ async function calculateRation() {
             return;
         }
 
-        // Вызываем runCalculation, получаем только exactResult
+        // Вызываем runCalculation, передавая requiredMixKcal
         const exactResult = runCalculation(
             selectedProduct,
-            dailyNeed,
+            requiredMixKcal, // <-- ИСПОЛЬЗУЕМ ЗНАЧЕНИЕ ИЗ НОВОГО ПОЛЯ
             feedingsPerDay,
             concentrationType
         );
 
 
         const concentrationName = concentrationType === 'ordinary'
-            ? 'Обычное разведение'
+            ? 'Изокалорическое разведение'
             : 'Гиперкалорическое разведение';
 
         const dilutionInfo = `
@@ -615,7 +619,6 @@ async function calculateRation() {
             rationResultDiv.innerHTML = dilutionInfo +
                 '<div class="calculation-section only-exact">' +
                 '<div>' +
-                '<h4>Точный расчет рациона</h4>' +
                 buildRationTableHTML(exactResult) +
                 '</div>' +
                 '</div>';
@@ -643,8 +646,15 @@ async function calculateRation() {
         }
 
         if (exportBtn) exportBtn.style.display = 'inline-block';
-        // Сохраняем только точный результат
-        window.lastCalculationResult = { exactResult, selectedProduct, dailyNeed, feedingsPerDay, totalFluidNeedMl };
+        // Сохраняем оба значения калорийности для экспорта
+        window.lastCalculationResult = {
+            exactResult,
+            selectedProduct,
+            calculatedDailyNeed: dailyNeedMetric, // Метрическая потребность
+            mixKcalUsed: requiredMixKcal,         // Потребность для расчета смеси
+            feedingsPerDay,
+            totalFluidNeedMl
+        };
 
     } catch (error) {
         console.error('Критическая ошибка расчета рациона (Детали):', error);
@@ -866,12 +876,17 @@ function initRationListeners() {
 
     // Добавляем слушатель на все поля, влияющие на расчет, для автоматического обновления
     const calculationInputs = [
-        'selectedProduct', 'feedingsPerDay', 'concentrationType' // УДАЛЕНО: 'scoopsPerMealRounding'
+        'requiredMixKcal', // <-- ДОБАВЛЕНО НОВОЕ ПОЛЕ
+        'selectedProduct', 'feedingsPerDay', 'concentrationType'
     ];
     calculationInputs.forEach(id => {
         const element = document.getElementById(id);
         if (element) {
             element.addEventListener('change', calculateRation);
+            // Добавляем 'input' для поля калорийности, чтобы реагировать мгновенно
+            if (id === 'requiredMixKcal') {
+                element.addEventListener('input', calculateRation);
+            }
         }
     });
 
@@ -906,19 +921,26 @@ function exportToExcel() {
         return;
     }
 
-    // Изменено деструктурирование: удален roundedResult
-    const { exactResult, selectedProduct, dailyNeed, feedingsPerDay, totalFluidNeedMl } = window.lastCalculationResult;
+    // Извлечение обоих значений калорийности
+    const {
+        exactResult,
+        selectedProduct,
+        calculatedDailyNeed,
+        mixKcalUsed,
+        feedingsPerDay,
+        totalFluidNeedMl
+    } = window.lastCalculationResult;
 
     const totalWaterInRationExact = exactResult.requiredWaterMl;
     const additionalFluidExact = Math.max(0, totalFluidNeedMl - totalWaterInRationExact);
 
 
     const data = [
-        // Удален столбец "Упрощенный расчет"
         ["Параметр", "Значение"],
         ["Продукт", selectedProduct.name],
         ["Состав порции", exactResult.baseServingDescription],
-        ["Суточная потребность, ккал", safeToFixed(dailyNeed, 0)],
+        ["Суточная потребность (расчет по метрикам), ккал", safeToFixed(calculatedDailyNeed, 0)], // Добавлено метрическое значение
+        ["ПОТРЕБНОСТЬ ДЛЯ РАСЧЕТА СМЕСИ (ККАЛ)", safeToFixed(mixKcalUsed, 0)], // Добавлено значение, использованное для расчета
         ["Количество приемов", feedingsPerDay],
         ["Концентрация, ккал/мл", safeToFixed(exactResult.kcalPerMl, 2)],
         ["---", "---"],
@@ -956,8 +978,6 @@ function exportToExcel() {
     ];
 
     const ws = XLSX.utils.aoa_to_sheet(data);
-
-    // Удалена строка с расчетом изменения калоража
 
     const wb = XLSX.utils.book_new();
     XLSX.utils.book_append_sheet(wb, ws, "Расчет рациона");
