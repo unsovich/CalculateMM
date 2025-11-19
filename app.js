@@ -263,9 +263,9 @@ function calculateBMR(weight, height, age, gender) {
     return null;
 }
 
-function getProteinTarget(weight, proteinNeedPerKg) {
-    return weight > 0 ? weight * proteinNeedPerKg : 0;
-}
+// function getProteinTarget(weight, proteinNeedPerKg) {
+//    return weight > 0 ? weight * proteinNeedPerKg : 0;
+//}
 
 function getFluidNeed(weight) {
     if (weight <= 0) {
@@ -308,7 +308,7 @@ function updatePatientMetrics() {
 
     const bmi = calculateBMI(weight, height);
     const bmr = calculateBMR(weight, height, age, gender);
-    const proteinTarget = getProteinTarget(weight, proteinNeedPerKg);
+    // const proteinTarget = getProteinTarget(weight, proteinNeedPerKg);
     const fluidNeed = getFluidNeed(weight);
 
     let dailyNeed = null;
