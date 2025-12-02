@@ -323,8 +323,9 @@
             <div class="form-group">
                 <label for="concentrationType">Тип разведения:</label>
                 <select id="concentrationType">
-                    <option value="ordinary">Изокалорическое</option>
-                    <option value="hyper">Гиперкалорическое (150% сухой смеси)</option>
+                    <option value="standard">Разведение "как на банке"</option>
+                    <option value="ordinary">Изокалорическое разведение</option>
+                    <option value="hyper">Гиперкалорическое разведение</option>
                 </select>
             </div>
             <div class="form-group">
@@ -384,21 +385,7 @@
                 </div>
             </div>
 
-            <h3>Состав на 100 г сухой смеси:</h3>
-            <div class="input-group-grid three-columns">
-                <div class="form-group">
-                    <label for="proteins">Белки (г)</label>
-                    <input type="number" id="proteins" step="0.1" min="0">
-                </div>
-                <div class="form-group">
-                    <label for="fats">Жиры (г)</label>
-                    <input type="number" id="fats" step="0.1" min="0">
-                </div>
-                <div class="form-group">
-                    <label for="carbs">Углеводы (г)</label>
-                    <input type="number" id="carbs" step="0.1" min="0">
-                </div>
-            </div>
+            <!-- Proteins, Fats, Carbs inputs removed -->
 
             <div class="form-group">
                 <label for="packageAmount">Вес упаковки (г)</label>
@@ -406,9 +393,27 @@
             </div>
 
             <h3>Параметры разведения (для расчета)</h3>
+            
+            <h4>Разведение "как на банке" (Standard)</h4>
             <div class="input-group-grid three-columns">
                 <div class="form-group">
-                    <label for="scoopsOrdinary">Ложек на порцию (изокалорическое)</label>
+                    <label for="scoopsStandard">Ложек на порцию</label>
+                    <input type="number" id="scoopsStandard" step="0.1" min="0">
+                </div>
+                <div class="form-group">
+                    <label for="waterStandard">Воды на порцию (мл)</label>
+                    <input type="number" id="waterStandard" step="1" min="0">
+                </div>
+                <div class="form-group">
+                    <label for="servingVolume_standard">Объем готовой порции (мл)</label>
+                    <input type="number" id="servingVolume_standard" step="1" min="0">
+                </div>
+            </div>
+
+            <h4>Изокалорическое разведение (Ordinary)</h4>
+            <div class="input-group-grid three-columns">
+                <div class="form-group">
+                    <label for="scoopsOrdinary">Ложек на порцию</label>
                     <input type="number" id="scoopsOrdinary" step="0.1" min="0">
                 </div>
                 <div class="form-group">
@@ -423,7 +428,10 @@
 
             <div class="input-group-grid three-columns">
                 <div class="form-group">
-                    <label for="scoopsHyper">Ложек на порцию (гипер)</label>
+            <h4>Гиперкалорическое разведение (Hyper)</h4>
+            <div class="input-group-grid three-columns">
+                <div class="form-group">
+                    <label for="scoopsHyper">Ложек на порцию</label>
                     <input type="number" id="scoopsHyper" step="0.1" min="0">
                 </div>
                 <div class="form-group">

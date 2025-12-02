@@ -70,7 +70,7 @@ if (!window.supabase) {
     console.error("Ошибка: Библиотека Supabase не загружена. Проверьте подключение в index.html");
 }
 // Добавлено условие, чтобы избежать ошибки, если window.supabase не загружен
-const { createClient } = window.supabase || { createClient: () => ({ auth: { getUser: () => ({ data: {} }), onAuthStateChange: () => {} } }) };
+const { createClient } = window.supabase || { createClient: () => ({ auth: { getUser: () => ({ data: {} }), onAuthStateChange: () => { } } }) };
 const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 
 
@@ -382,67 +382,64 @@ function updatePatientMetrics() {
 function runCalculation(product, dailyNeed, feedingsPerDay, concentrationType) {
     const productCalories = product.calories || 0;
     const productScoopWeight = product.scoopWeight || 0;
-    const productProteins = product.proteins || 0;
-    const productFats = product.fats || 0;
-    const productCarbs = product.carbs || 0;
+
+    // Данные для разведений
+    const scoopsStandard = product.scoopsStandard || 0;
+    const waterStandard = product.waterStandard || 0;
+    const servingVolumeStandard = product.servingVolume_standard || 0;
 
     const scoopsOrdinary = product.scoopsOrdinary || 0;
     const waterOrdinary = product.waterOrdinary || 0;
     const servingVolumeOrdinary = product.servingVolume_ordinary || 0;
+
     const scoopsHyper = product.scoopsHyper || 0;
     const waterHyper = product.waterHyper || 0;
     const servingVolumeHyper = product.servingVolume_hyper || 0;
+
     const packageAmount = product.packageAmount || 0;
 
-    const isOrdinary = concentrationType === 'ordinary';
-
     const kcalPerScoop = (productCalories * productScoopWeight) / 100;
-    const proteinPerScoop = (productProteins * productScoopWeight) / 100;
-    const fatPerScoop = (productFats * productScoopWeight) / 100;
-    const carbsPerScoop = (productCarbs * productScoopWeight) / 100;
 
     let scoopsPerServing, waterPerServing, servingVolume, baseServingDescription;
 
-    if (isOrdinary) {
+    // Логика выбора разведения
+    if (concentrationType === 'standard') {
+        if (scoopsStandard <= 0 || waterStandard <= 0 || servingVolumeStandard <= 0) {
+            throw new Error('MISSING_DATA_STANDARD');
+        }
+        scoopsPerServing = scoopsStandard;
+        waterPerServing = waterStandard;
+        servingVolume = servingVolumeStandard;
+        baseServingDescription = `${scoopsPerServing} ложек на ${waterPerServing} мл воды`;
+
+    } else if (concentrationType === 'ordinary') {
+        if (scoopsOrdinary <= 0 || waterOrdinary <= 0 || servingVolumeOrdinary <= 0) {
+            throw new Error('MISSING_DATA_ORDINARY');
+        }
         scoopsPerServing = scoopsOrdinary;
         waterPerServing = waterOrdinary;
         servingVolume = servingVolumeOrdinary;
         baseServingDescription = `${scoopsPerServing} ложек на ${waterPerServing} мл воды`;
 
-        if (servingVolume === 0 || scoopsPerServing === 0) {
-            throw new Error(`Продукт "${product.name}" не настроен для обычного разведения. Проверьте "Ложки на порцию" и "Объем готового раствора".`);
-        }
-
-    } else {
-        let useHyperParams = (scoopsHyper > 0 && waterHyper > 0 && servingVolumeHyper > 0);
-
-        if (useHyperParams) {
+    } else if (concentrationType === 'hyper') {
+        // Проверяем, есть ли данные для гиперкалорического
+        if (scoopsHyper > 0 && waterHyper > 0 && servingVolumeHyper > 0) {
             scoopsPerServing = scoopsHyper;
             waterPerServing = waterHyper;
             servingVolume = servingVolumeHyper;
             baseServingDescription = `${scoopsPerServing} ложек на ${waterPerServing} мл воды`;
-
         } else {
-            if (scoopsOrdinary <= 0 || waterOrdinary <= 0 || servingVolumeOrdinary <= 0) {
-                throw new Error(`Продукт "${product.name}" не настроен для гиперкалорического разведения и не имеет данных для фоллбэка (обычное разведение).`);
-            }
-
-            scoopsPerServing = roundToTwo(scoopsOrdinary * 1.5);
-            waterPerServing = waterOrdinary;
-
-            const powderVolumePerScoop = (servingVolumeOrdinary - waterOrdinary) / scoopsOrdinary;
-            servingVolume = (scoopsPerServing * powderVolumePerScoop) + waterPerServing;
-
-            baseServingDescription = `${safeToFixed(scoopsPerServing, 1)} ложек на ${waterPerServing} мл воды (1.5x фоллбэк)`;
-
-            if (servingVolume === 0 || scoopsPerServing === 0) {
-                throw new Error('Ошибка расчета параметров гиперкалорического разведения (фоллбэк). Проверьте данные обычного разведения.');
-            }
+            // Если данных нет, выбрасываем ошибку для уведомления (согласно требованию 3)
+            // Раньше был фоллбэк, теперь требование: "отображать уведомление, что нет данных"
+            throw new Error('MISSING_DATA_HYPER');
         }
+    } else {
+        throw new Error('Неизвестный тип разведения');
     }
 
     const kcalPerServing = kcalPerScoop * scoopsPerServing;
     const concentration = kcalPerServing / servingVolume;
+
     if (concentration === 0 || isNaN(concentration) || !isFinite(concentration)) {
         if (dailyNeed > 0) {
             throw new Error('Ошибка расчета концентрации. Проверьте данные продукта (Ккал/100г, Вес ложки, Объем порции).');
@@ -454,9 +451,6 @@ function runCalculation(product, dailyNeed, feedingsPerDay, concentrationType) {
     const totalWaterInRationExact = (requiredScoopsTotal / scoopsPerServing) * waterPerServing;
     const totalMixWeightGramsExact = requiredScoopsTotal * productScoopWeight;
     const totalKcalExact = kcalPerScoop * requiredScoopsTotal;
-    const totalProteinGramsExact = proteinPerScoop * requiredScoopsTotal;
-    const totalFatGramsExact = fatPerScoop * requiredScoopsTotal;
-    const totalCarbsGramsExact = carbsPerScoop * requiredScoopsTotal;
 
     const packageAmountCheck = packageAmount > 0;
     const daysSupplyExact = (packageAmountCheck && totalMixWeightGramsExact > 0)
@@ -472,9 +466,6 @@ function runCalculation(product, dailyNeed, feedingsPerDay, concentrationType) {
         baseServingDescription: baseServingDescription,
         feedingsPerDay: feedingsPerDay,
         totalCalculatedKcal: totalKcalExact,
-        totalProteinGrams: totalProteinGramsExact,
-        totalFatGrams: totalFatGramsExact,
-        totalCarbsGrams: totalCarbsGramsExact,
         totalMixWeightGrams: totalMixWeightGramsExact,
         requiredVolumeMl: requiredVolumeMl,
         requiredScoopsTotal: requiredScoopsTotal,
@@ -486,9 +477,6 @@ function runCalculation(product, dailyNeed, feedingsPerDay, concentrationType) {
         requiredWaterPerMeal: totalWaterInRationExact / feedingsPerDay,
         volumePerMealMl: requiredVolumeMl / feedingsPerDay,
         kcalPerMeal: totalKcalExact / feedingsPerDay,
-        proteinPerMeal: totalProteinGramsExact / feedingsPerDay,
-        fatPerMeal: totalFatGramsExact / feedingsPerDay,
-        carbsPerMeal: totalCarbsGramsExact / feedingsPerDay,
     };
 
     return exactResult;
@@ -515,9 +503,6 @@ function buildRationTableHTML(result) {
                 ${createRowUnit('Воды', result.requiredWaterPerMeal, 'мл', true, 0)}
                 ${createRowUnit('Готовый раствор (прибл.)', result.volumePerMealMl, 'мл', true, 0)}
                 ${createRowUnit('Калорийность', result.kcalPerMeal, 'ккал', false, 0)}
-                ${createRowUnit('Белки', result.proteinPerMeal, 'г', false, 1)}
-                ${createRowUnit('Жиры', result.fatPerMeal, 'г', false, 1)}
-                ${createRowUnit('Углеводы', result.carbsPerMeal, 'г', false, 1)}
             </tbody>
 
             <thead>
@@ -534,9 +519,6 @@ function buildRationTableHTML(result) {
                     <td class="highlight">${safeToFixed(result.requiredVolumeMl, 0)} мл (${safeToFixed(result.dailyVolumeLitres, 2)} л)</td>
                 </tr>
                 ${createRowUnit('Калорийность', result.totalCalculatedKcal, 'ккал', false, 0)}
-                ${createRowUnit('Белки', result.totalProteinGrams, 'г', false, 1)}
-                ${createRowUnit('Жиры', result.totalFatGrams, 'г', false, 1)}
-                ${createRowUnit('Углеводы', result.carbsPerMeal, 'г', false, 1)}
             </tbody>
 
             <thead>
@@ -594,15 +576,15 @@ async function calculateRation() {
         // Вызываем runCalculation, передавая requiredMixKcal
         const exactResult = runCalculation(
             selectedProduct,
-            requiredMixKcal, // <-- ИСПОЛЬЗУЕМ ЗНАЧЕНИЕ ИЗ НОВОГО ПОЛЯ
+            requiredMixKcal,
             feedingsPerDay,
             concentrationType
         );
 
-
-        const concentrationName = concentrationType === 'ordinary'
-            ? 'Изокалорическое разведение'
-            : 'Гиперкалорическое разведение';
+        let concentrationName = '';
+        if (concentrationType === 'standard') concentrationName = 'Разведение "как на банке"';
+        else if (concentrationType === 'ordinary') concentrationName = 'Изокалорическое разведение';
+        else if (concentrationType === 'hyper') concentrationName = 'Гиперкалорическое разведение';
 
         const dilutionInfo = `
             <div class="results-section">
@@ -646,19 +628,33 @@ async function calculateRation() {
         }
 
         if (exportBtn) exportBtn.style.display = 'inline-block';
-        // Сохраняем оба значения калорийности для экспорта
+
         window.lastCalculationResult = {
             exactResult,
             selectedProduct,
-            calculatedDailyNeed: dailyNeedMetric, // Метрическая потребность
-            mixKcalUsed: requiredMixKcal,         // Потребность для расчета смеси
+            calculatedDailyNeed: dailyNeedMetric,
+            mixKcalUsed: requiredMixKcal,
             feedingsPerDay,
             totalFluidNeedMl
         };
 
     } catch (error) {
-        console.error('Критическая ошибка расчета рациона (Детали):', error);
-        showError('Критическая ошибка расчета: ' + (error.message || 'Неизвестная ошибка (проверьте консоль)'));
+        if (error.message.startsWith('MISSING_DATA')) {
+            let msg = 'Для данного вида смеси нет данных по этому виду разведения.';
+            if (error.message === 'MISSING_DATA_STANDARD') msg = 'Для выбранной смеси не заполнены данные разведения "как на банке".';
+            if (error.message === 'MISSING_DATA_ORDINARY') msg = 'Для выбранной смеси не заполнены данные изокалорического разведения.';
+            if (error.message === 'MISSING_DATA_HYPER') msg = 'Для выбранной смеси не заполнены данные гиперкалорического разведения.';
+
+            if (rationResultDiv) {
+                rationResultDiv.innerHTML = `<div class="results-section"><p class="error-message-inline">${msg}</p></div>`;
+                rationResultDiv.style.display = 'block';
+            }
+            if (additionalFluidResultDiv) additionalFluidResultDiv.style.display = 'none';
+            if (exportBtn) exportBtn.style.display = 'none';
+        } else {
+            console.error('Критическая ошибка расчета рациона (Детали):', error);
+            showError('Критическая ошибка расчета: ' + (error.message || 'Неизвестная ошибка (проверьте консоль)'));
+        }
     }
 }
 
@@ -750,10 +746,12 @@ async function openModal(productId = null) {
                 document.getElementById('productName').value = product.name || '';
                 document.getElementById('productCalories').value = product.calories || '';
                 document.getElementById('scoopWeight').value = product.scoopWeight || '';
-                document.getElementById('proteins').value = product.proteins || '';
-                document.getElementById('fats').value = product.fats || '';
-                document.getElementById('carbs').value = product.carbs || '';
+                // P/F/C removed
                 document.getElementById('packageAmount').value = product.packageAmount || '';
+
+                document.getElementById('scoopsStandard').value = product.scoopsStandard || '';
+                document.getElementById('waterStandard').value = product.waterStandard || '';
+                document.getElementById('servingVolume_standard').value = product.servingVolume_standard || '';
 
                 document.getElementById('scoopsOrdinary').value = product.scoopsOrdinary || '';
                 document.getElementById('waterOrdinary').value = product.waterOrdinary || '';
@@ -822,11 +820,13 @@ function initModal() {
                 // Добавлено || 0 для числовых полей
                 name: document.getElementById('productName').value,
                 calories: parseFloat(document.getElementById('productCalories').value) || 0,
-                proteins: parseFloat(document.getElementById('proteins').value) || 0,
-                fats: parseFloat(document.getElementById('fats').value) || 0,
-                carbs: parseFloat(document.getElementById('carbs').value) || 0,
                 scoopWeight: parseFloat(document.getElementById('scoopWeight').value) || 0,
                 packageAmount: parseFloat(document.getElementById('packageAmount').value) || 0,
+
+                // Разведение "как на банке" (Standard)
+                scoopsStandard: parseFloat(document.getElementById('scoopsStandard').value) || 0,
+                waterStandard: parseFloat(document.getElementById('waterStandard').value) || 0,
+                servingVolume_standard: parseFloat(document.getElementById('servingVolume_standard').value) || 0,
 
                 // Обычное разведение
                 scoopsOrdinary: parseFloat(document.getElementById('scoopsOrdinary').value) || 0,
@@ -842,8 +842,8 @@ function initModal() {
                 description: document.getElementById('productDescription').value,
             };
 
-            if (product.calories <= 0 || product.scoopWeight <= 0 || product.proteins < 0 || product.scoopsOrdinary <= 0 || product.servingVolume_ordinary <= 0) {
-                showError('Заполните все обязательные поля корректными числовыми значениями (Название, Ккал, Белок, Вес ложки, Параметры обычного разведения).');
+            if (product.calories <= 0 || product.scoopWeight <= 0) {
+                showError('Заполните все обязательные поля корректными числовыми значениями (Название, Ккал, Вес ложки).');
                 return;
             }
 
@@ -950,9 +950,6 @@ function exportToExcel() {
         ["Воды на прием, мл", safeToFixed(exactResult.requiredWaterPerMeal, 0)],
         ["Объем готового р-ра на прием, мл", safeToFixed(exactResult.volumePerMealMl, 0)],
         ["Калорийность на прием, ккал", safeToFixed(exactResult.kcalPerMeal, 0)],
-        ["Белки на прием, г", safeToFixed(exactResult.proteinPerMeal, 1)],
-        ["Жиры на прием, г", safeToFixed(exactResult.fatPerMeal, 1)],
-        ["Углеводы на прием, г", safeToFixed(exactResult.carbsPerMeal, 1)],
         ["---", "---"],
 
         // НА СУТКИ
@@ -961,9 +958,6 @@ function exportToExcel() {
         ["Общее количество воды, мл", safeToFixed(exactResult.requiredWaterMl, 0)],
         ["Общий объем раствора, мл", safeToFixed(exactResult.requiredVolumeMl, 0)],
         ["Общая калорийность, ккал", safeToFixed(exactResult.totalCalculatedKcal, 0)],
-        ["Общее количество белка, г", safeToFixed(exactResult.totalProteinGrams, 1)],
-        ["Общее количество жиров, г", safeToFixed(exactResult.totalFatGrams, 1)],
-        ["Общее количество углеводов, г", safeToFixed(exactResult.carbsPerMeal, 1)],
         ["---", "---"],
 
         // РАСХОД
