@@ -477,6 +477,14 @@ function runCalculation(product, dailyNeed, feedingsPerDay, concentrationType) {
         requiredWaterPerMeal: totalWaterInRationExact / feedingsPerDay,
         volumePerMealMl: requiredVolumeMl / feedingsPerDay,
         kcalPerMeal: totalKcalExact / feedingsPerDay,
+        // Detailed parameters for debugging/transparency
+        details: {
+            kcalPerScoop,
+            servingVolume,
+            packageAmount,
+            scoopsPerServing,
+            waterPerServing
+        }
     };
 
     return exactResult;
@@ -592,8 +600,14 @@ async function calculateRation() {
                 <p class="ration-summary-compact">
                     <strong>Тип разведения:</strong> ${concentrationName}.
                     <strong>Концентрация:</strong> ${safeToFixed(exactResult.kcalPerMl, 2)} ккал/мл.
-                    <strong>Базовая порция:</strong> ${exactResult.baseServingDescription}.
                 </p>
+                <div class="calculation-details-block" style="background: #f8f9fa; padding: 10px; border-radius: 5px; margin-top: 10px; font-size: 0.9em; color: #555;">
+                    <strong>Детали расчета (базовая порция):</strong><br>
+                    • ${exactResult.details.scoopsPerServing} ложек на ${exactResult.details.waterPerServing} мл воды = ${safeToFixed(exactResult.details.servingVolume, 1)} мл готового раствора.<br>
+                    • Калорийность 1 ложки: ${safeToFixed(exactResult.details.kcalPerScoop, 2)} ккал.<br>
+                    • Калорийность порции: ${safeToFixed(exactResult.details.kcalPerScoop * exactResult.details.scoopsPerServing, 1)} ккал.<br>
+                    <em>Расчет: ${safeToFixed(requiredMixKcal, 0)} ккал / ${safeToFixed(exactResult.kcalPerMl, 4)} ккал/мл = ${safeToFixed(exactResult.requiredVolumeMl, 0)} мл раствора.</em>
+                </div>
             </div>
         `;
 
