@@ -65,13 +65,16 @@ function safeToFixed(value, digits = 1) {
 const SUPABASE_URL = 'https://kyxyuhttgyfihakaajsn.supabase.co';
 const SUPABASE_ANON_KEY = 'sb_publishable_x0GfxNq6Aq2UReH-IGO2iQ_x5zJLX4M';
 
-if (!window.supabase) {
-    // В отличие от showError, этот блок вызовет console.error, если даже showError не сработает
+// ФИКС: Supabase библиотека уже создает глобальную переменную window.supabase
+// Используем её напрямую, не создаем новую const supabase
+let supabase;
+if (window.supabase && window.supabase.createClient) {
+    supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+} else {
     console.error("Ошибка: Библиотека Supabase не загружена. Проверьте подключение в index.html");
+    // Создаем заглушку, чтобы избежать ошибок
+    supabase = { auth: { getUser: () => ({ data: {} }), onAuthStateChange: () => { }, signInWithPassword: () => ({}), signUp: () => ({}), signOut: () => ({}) }, from: () => ({ select: () => ({}), insert: () => ({}), update: () => ({}), delete: () => ({}) }) };
 }
-// Добавлено условие, чтобы избежать ошибки, если window.supabase не загружен
-const { createClient } = window.supabase || { createClient: () => ({ auth: { getUser: () => ({ data: {} }), onAuthStateChange: () => { } } }) };
-const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 
 
 // --- ФУНКЦИИ АУТЕНТИФИКАЦИИ ---
@@ -286,6 +289,7 @@ function getFluidNeed(weight) {
 }
 
 function updatePatientMetrics() {
+    console.log('updatePatientMetrics called'); // DEBUG
     const weight = parseFloat(document.getElementById('patientWeight')?.value) || 0;
     const height = parseFloat(document.getElementById('patientHeight')?.value) || 0;
     const age = parseFloat(document.getElementById('patientAge')?.value) || 0;
@@ -874,6 +878,7 @@ function initModal() {
 // --- ФУНКЦИИ ИНИЦИАЛИЗАЦИИ И СЛУШАТЕЛЕЙ ---
 
 function initRationListeners() {
+    console.log('initRationListeners called'); // DEBUG
     const calculateBtn = document.getElementById('calculateBtn');
     if (calculateBtn) { // Безопасная проверка
         calculateBtn.addEventListener('click', calculateRation);
@@ -899,13 +904,16 @@ function initRationListeners() {
     const patientInputs = [
         'patientWeight', 'patientHeight', 'patientAge', 'patientGender', 'activityFactor'
     ];
+    console.log('Attaching event listeners to patient inputs:', patientInputs); // DEBUG
     patientInputs.forEach(id => {
         const element = document.getElementById(id);
+        console.log(`Element ${id}:`, element); // DEBUG
         if (element) {
             element.addEventListener('change', updatePatientMetrics);
             element.addEventListener('input', updatePatientMetrics);
             // ФИКС: Добавлен blur для мобильных устройств, где change/input могут не срабатывать
             element.addEventListener('blur', updatePatientMetrics);
+            console.log(`Attached listeners to ${id}`); // DEBUG
         }
     });
 
@@ -994,26 +1002,37 @@ function exportToExcel() {
 
 // --- ИНИЦИАЛИЗАЦИЯ ПРИЛОЖЕНИЯ ---
 
-document.addEventListener('DOMContentLoaded', async () => {
+// ФИКС: С атрибутом defer скрипт выполняется ПОСЛЕ DOMContentLoaded,
+// поэтому addEventListener не сработает. Проверяем readyState.
+async function initializeApp() {
+    console.log('initializeApp called'); // DEBUG
     try {
         // 1. Проверка Supabase, чтобы избежать ошибки
         if (!window.supabase) {
+            console.error('Supabase not loaded'); // DEBUG
             showError("Критическая ошибка: Библиотека Supabase не загружена. Проверьте подключение в index.html");
             return;
         }
+        console.log('Supabase loaded successfully'); // DEBUG
 
         // 2. Проверка статуса аутентификации при старте
+        console.log('Checking auth status...'); // DEBUG
         const { data: { user } } = await supabase.auth.getUser();
+        console.log('Auth user:', user); // DEBUG
         updateAuthUI(user);
 
         // 3. Инициализация слушателей
+        console.log('Initializing listeners...'); // DEBUG
         initAuthListeners();
         initCalculator();
         initRationListeners();
         initModal();
+        console.log('All listeners initialized'); // DEBUG
 
         // 4. Загрузка продуктов
+        console.log('Loading products...'); // DEBUG
         await loadProductsToSelect();
+        console.log('Products loaded'); // DEBUG
 
         // 5. Добавляем слушатель для отслеживания изменений сессии (вход/выход)
         supabase.auth.onAuthStateChange((event, session) => {
@@ -1025,9 +1044,19 @@ document.addEventListener('DOMContentLoaded', async () => {
         });
 
     } catch (error) {
+        console.error('Ошибка инициализации:', error); // DEBUG
         showError('Ошибка инициализации приложения: ' + error.message);
     }
-});
+}
+
+// Проверяем, готов ли DOM, и запускаем инициализацию
+if (document.readyState === 'loading') {
+    console.log('DOM still loading, waiting for DOMContentLoaded'); // DEBUG
+    document.addEventListener('DOMContentLoaded', initializeApp);
+} else {
+    console.log('DOM already ready, initializing immediately'); // DEBUG
+    initializeApp();
+}
 
 // Глобальные функции для кнопок
 window.editProduct = async function (productId) {
