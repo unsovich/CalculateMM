@@ -291,7 +291,6 @@ function updatePatientMetrics() {
     const age = parseFloat(document.getElementById('patientAge')?.value) || 0;
     const gender = document.getElementById('patientGender')?.value || 'male';
     const activityFactorValue = parseFloat(document.getElementById('activityFactor')?.value) || 1.2;
-    const proteinNeedPerKg = parseFloat(document.getElementById('proteinNeed')?.value) || 1.5;
 
     const bmiResult = document.getElementById('bmiResult');
     const bmiStatus = document.getElementById('bmiStatus');
@@ -300,8 +299,6 @@ function updatePatientMetrics() {
     const dailyNeedStatus = document.getElementById('dailyNeedStatus');
     const fluidNeedResult = document.getElementById('fluidNeedResult');
     const fluidNeedStatus = document.getElementById('fluidNeedStatus');
-    const proteinTargetResult = document.getElementById('proteinTargetResult');
-    const proteinTargetStatus = document.getElementById('proteinTargetStatus');
 
     const activityFactorSelect = document.getElementById('activityFactor');
     const activityFactorText = activityFactorSelect?.options[activityFactorSelect.selectedIndex]?.text.split(' - ')[1] || 'Не задан';
@@ -364,12 +361,6 @@ function updatePatientMetrics() {
         fluidNeedResult.style.color = '#9b59b6';
         if (fluidNeedStatus) fluidNeedStatus.textContent = `Формула: Holliday-Segar 4-2-1`;
         fluidNeedResult.dataset.totalFluid = safeToFixed(fluidNeed, 0);
-    }
-
-    if (proteinTargetResult) {
-        proteinTargetResult.textContent = `${safeToFixed(proteinTarget, 0)} г/сутки`;
-        proteinTargetResult.style.color = '#c0392b';
-        if (proteinTargetStatus) proteinTargetStatus.textContent = `Вес * ${safeToFixed(proteinNeedPerKg, 1)} г/кг`;
     }
 
     calculateRation();
@@ -906,7 +897,7 @@ function initRationListeners() {
 
     // Слушатели на параметры пациента
     const patientInputs = [
-        'patientWeight', 'patientHeight', 'patientAge', 'patientGender', 'activityFactor', 'proteinNeed'
+        'patientWeight', 'patientHeight', 'patientAge', 'patientGender', 'activityFactor'
     ];
     patientInputs.forEach(id => {
         const element = document.getElementById(id);
