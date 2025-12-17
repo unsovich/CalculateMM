@@ -7,6 +7,8 @@
     <title>Расчет рациона медицинского питания</title>
     <link rel="stylesheet" href="styles.css">
     <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    <script src="app.js"></script>
 
     <style>
         /* НОВЫЙ СТИЛЬ: Унифицированный отступ для десктопа */
@@ -49,19 +51,22 @@
                 flex-direction: column;
                 align-items: stretch;
             }
+
             .auth-form input,
             .auth-form button {
                 width: 100%;
                 box-sizing: border-box;
                 margin-bottom: 8px;
             }
+
             .auth-form button:last-child {
                 margin-bottom: 0;
             }
         }
 
         /* Стили для метрик пациента */
-        .patient-metrics, .input-group-grid {
+        .patient-metrics,
+        .input-group-grid {
             /* 4 колонки для десктопа, так как убрали Целевой белок */
             display: grid;
             grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
@@ -114,6 +119,7 @@
             width: 70%;
             text-align: left;
         }
+
         .results-table th:last-child {
             width: 30%;
             text-align: right;
@@ -145,7 +151,8 @@
             display: grid;
             grid-template-columns: 1fr;
             gap: 20px;
-            align-items: start; /* Важно для выравнивания таблиц */
+            align-items: start;
+            /* Важно для выравнивания таблиц */
         }
 
         .calculation-section h4 {
@@ -155,14 +162,17 @@
 
         /* Стиль для выравнивания таблиц - компенсирует высоту */
         .status-caloric-change {
-            min-height: 20px; /* Достаточно для одной строки текста */
+            min-height: 20px;
+            /* Достаточно для одной строки текста */
             margin-bottom: 10px;
             display: block;
             font-size: 0.9em;
             color: #7f8c8d;
         }
+
         .empty-placeholder {
-            visibility: hidden; /* Скрываем, но сохраняем место */
+            visibility: hidden;
+            /* Скрываем, но сохраняем место */
         }
 
         /* НОВЫЙ СТИЛЬ: Компактный вывод информации о разведении */
@@ -183,13 +193,19 @@
             .calculation-section {
                 grid-template-columns: 1fr;
             }
+
             .results-table thead {
                 display: none;
             }
-            .results-table, .results-table tbody, .results-table tr, .results-table td {
+
+            .results-table,
+            .results-table tbody,
+            .results-table tr,
+            .results-table td {
                 display: block;
                 width: 100%;
             }
+
             .results-table tr {
                 margin-bottom: 15px;
                 border: 1px solid #ddd;
@@ -244,242 +260,243 @@
 </head>
 
 <body>
-<div class="container">
-    <h2>Расчет рациона медицинского питания</h2>
+    <div class="container">
+        <h2>Расчет рациона медицинского питания</h2>
 
-    <div id="errorMessage" style="display: none;"></div>
+        <div id="errorMessage" style="display: none;"></div>
 
-    <div class="results-section">
-        <h2>Данные пациента и расчет потребности</h2>
-        <div class="input-group-grid">
-            <div class="form-group">
-                <label for="patientWeight">Вес (кг):</label>
-                <input type="number" id="patientWeight" step="0.1" min="1">
+        <div class="results-section">
+            <h2>Данные пациента и расчет потребности</h2>
+            <div class="input-group-grid">
+                <div class="form-group">
+                    <label for="patientWeight">Вес (кг):</label>
+                    <input type="number" id="patientWeight" step="0.1" min="1">
+                </div>
+                <div class="form-group">
+                    <label for="patientHeight">Рост (см):</label>
+                    <input type="number" id="patientHeight" step="1" min="1">
+                </div>
+                <div class="form-group">
+                    <label for="patientAge">Возраст (лет):</label>
+                    <input type="number" id="patientAge" step="1" min="1">
+                </div>
+                <div class="form-group">
+                    <label for="patientGender">Пол:</label>
+                    <select id="patientGender">
+                        <option value="male">Мужской</option>
+                        <option value="female">Женский</option>
+                    </select>
+                </div>
+                <div class="form-group">
+                    <label for="activityFactor">Фактор активности:</label>
+                    <select id="activityFactor">
+                        <option value="1.2">1.2 - Постельный режим</option>
+                        <option value="1.3">1.3 - Легкая активность</option>
+                        <option value="1.5">1.5 - Средняя активность</option>
+                        <option value="1.7">1.7 - Высокая активность</option>
+                    </select>
+                </div>
             </div>
-            <div class="form-group">
-                <label for="patientHeight">Рост (см):</label>
-                <input type="number" id="patientHeight" step="1" min="1">
-            </div>
-            <div class="form-group">
-                <label for="patientAge">Возраст (лет):</label>
-                <input type="number" id="patientAge" step="1" min="1">
-            </div>
-            <div class="form-group">
-                <label for="patientGender">Пол:</label>
-                <select id="patientGender">
-                    <option value="male">Мужской</option>
-                    <option value="female">Женский</option>
-                </select>
-            </div>
-            <div class="form-group">
-                <label for="activityFactor">Фактор активности:</label>
-                <select id="activityFactor">
-                    <option value="1.2">1.2 - Постельный режим</option>
-                    <option value="1.3">1.3 - Легкая активность</option>
-                    <option value="1.5">1.5 - Средняя активность</option>
-                    <option value="1.7">1.7 - Высокая активность</option>
-                </select>
+
+            <div class="patient-metrics">
+                <div class="result-card">
+                    <h5>Индекс Массы Тела (ИМТ)</h5>
+                    <p class="metric-value" id="bmiResult">0.0 кг/м²</p>
+                    <p class="metric-status" id="bmiStatus">Введите данные</p>
+                </div>
+                <div class="result-card">
+                    <h5>Основной Обмен (ОО)</h5>
+                    <p class="metric-value" id="bmrResult">0 ккал/сутки</p>
+                    <p class="metric-status">Расчет по Харрису-Бенедикту</p>
+                </div>
+                <div class="result-card">
+                    <h5>Суточная Потребность (СП)</h5>
+                    <p class="metric-value" id="dailyNeedResult" data-daily-need="0">0 ккал/сутки</p>
+                    <p class="metric-status" id="dailyNeedStatus">ОО * Фактор активности</p>
+                </div>
+                <div class="result-card">
+                    <h5>Суточный Объем Жидкости (ЖВО)</h5>
+                    <p class="metric-value" id="fluidNeedResult" data-total-fluid="0">0 мл/сутки</p>
+                    <p class="metric-status" id="fluidNeedStatus">Формула: Holliday-Segar 4-2-1</p>
+                </div>
             </div>
         </div>
 
-        <div class="patient-metrics">
-            <div class="result-card">
-                <h5>Индекс Массы Тела (ИМТ)</h5>
-                <p class="metric-value" id="bmiResult">0.0 кг/м²</p>
-                <p class="metric-status" id="bmiStatus">Введите данные</p>
-            </div>
-            <div class="result-card">
-                <h5>Основной Обмен (ОО)</h5>
-                <p class="metric-value" id="bmrResult">0 ккал/сутки</p>
-                <p class="metric-status">Расчет по Харрису-Бенедикту</p>
-            </div>
-            <div class="result-card">
-                <h5>Суточная Потребность (СП)</h5>
-                <p class="metric-value" id="dailyNeedResult" data-daily-need="0">0 ккал/сутки</p>
-                <p class="metric-status" id="dailyNeedStatus">ОО * Фактор активности</p>
-            </div>
-            <div class="result-card">
-                <h5>Суточный Объем Жидкости (ЖВО)</h5>
-                <p class="metric-value" id="fluidNeedResult" data-total-fluid="0">0 мл/сутки</p>
-                <p class="metric-status" id="fluidNeedStatus">Формула: Holliday-Segar 4-2-1</p>
-            </div>
-        </div>
-    </div>
+        <div class="results-section">
+            <h2>Расчет рациона</h2>
+            <div class="input-group-grid">
+                <div class="form-group">
+                    <label for="requiredMixKcal">Потребность в смеси (ККАЛ):</label>
+                    <input type="number" id="requiredMixKcal" step="1" min="0" value="0">
+                </div>
 
-    <div class="results-section">
-        <h2>Расчет рациона</h2>
-        <div class="input-group-grid">
-            <div class="form-group">
-                <label for="requiredMixKcal">Потребность в смеси (ККАЛ):</label>
-                <input type="number" id="requiredMixKcal" step="1" min="0" value="0">
+                <div class="form-group">
+                    <label for="selectedProduct">Выбранная смесь:</label>
+                    <select id="selectedProduct">
+                        <option value="">-- Загрузка продуктов... --</option>
+                    </select>
+                </div>
+                <div class="form-group">
+                    <label for="concentrationType">Тип разведения:</label>
+                    <select id="concentrationType">
+                        <option value="standard">Разведение "как на банке"</option>
+                        <option value="ordinary">Изокалорическое разведение</option>
+                        <option value="hyper">Гиперкалорическое разведение</option>
+                    </select>
+                </div>
+                <div class="form-group">
+                    <label for="feedingsPerDay">Количество приемов в сутки:</label>
+                    <input type="number" id="feedingsPerDay" step="1" min="1" value="4">
+                </div>
             </div>
 
-            <div class="form-group">
-                <label for="selectedProduct">Выбранная смесь:</label>
-                <select id="selectedProduct">
-                    <option value="">-- Загрузка продуктов... --</option>
-                </select>
-            </div>
-            <div class="form-group">
-                <label for="concentrationType">Тип разведения:</label>
-                <select id="concentrationType">
-                    <option value="standard">Разведение "как на банке"</option>
-                    <option value="ordinary">Изокалорическое разведение</option>
-                    <option value="hyper">Гиперкалорическое разведение</option>
-                </select>
-            </div>
-            <div class="form-group">
-                <label for="feedingsPerDay">Количество приемов в сутки:</label>
-                <input type="number" id="feedingsPerDay" step="1" min="1" value="4">
+            <div id="rationResult">
+                <p class="error-message-inline">Введите потребность в смеси (ККАЛ), выберите смесь и количество приемов
+                    для расчета.</p>
             </div>
         </div>
 
-        <div id="rationResult">
-            <p class="error-message-inline">Введите потребность в смеси (ККАЛ), выберите смесь и количество приемов для расчета.</p>
+        <div id="additionalFluidResult">
+        </div>
+
+        <div id="authSection">
+            <h2>Аутентификация и управление продуктами</h2>
+            <p id="authStatus">Статус: Анонимный</p>
+            <form id="authForm" class="auth-form">
+                <input type="email" id="authEmail" placeholder="Email" required>
+                <input type="password" id="authPassword" placeholder="Пароль" required>
+                <button type="submit" class="btn btn-primary">Войти</button>
+                <button type="button" class="btn btn-secondary" id="signUpBtn">Регистрация</button>
+            </form>
+            <button type="button" class="btn btn-secondary" id="logoutBtn"
+                style="display: none; margin-top: 10px;">Выйти</button>
+            <button type="button" class="btn btn-primary" id="searchMedpitanieBtn" style="margin-top: 10px;">
+                Управление продуктами
+            </button>
+        </div>
+
+
+    </div>
+
+    <div id="productModal" class="modal">
+        <div class="modal-content">
+            <span class="close-button" id="closeModalBtn">&times;</span>
+            <h2 id="modalTitle">Управление продуктами медицинского питания</h2>
+            <p id="modalAuthStatus" style="font-size: 0.9em; margin-bottom: 20px;"></p>
+            <div id="modalErrorMessage" class="error-message" style="display: none;"></div>
+
+            <form id="productForm">
+                <input type="hidden" id="productId">
+                <div class="form-group">
+                    <label for="productName">Название продукта</label>
+                    <input type="text" id="productName" required>
+                </div>
+
+                <div class="input-group-grid two-columns">
+                    <div class="form-group">
+                        <label for="productCalories">Ккал на 100 г сухой смеси</label>
+                        <input type="number" id="productCalories" step="0.1" min="0" required>
+                    </div>
+                    <div class="form-group">
+                        <label for="scoopWeight">Вес одной мерной ложки (г)</label>
+                        <input type="number" id="scoopWeight" step="0.1" min="0" required>
+                    </div>
+                </div>
+
+                <!-- Proteins, Fats, Carbs inputs removed -->
+
+                <div class="form-group">
+                    <label for="packageAmount">Вес упаковки (г)</label>
+                    <input type="number" id="packageAmount" step="1" min="0" value="400">
+                </div>
+
+                <h3>Параметры разведения (для расчета)</h3>
+
+                <h4>Разведение "как на банке" (Standard)</h4>
+                <div class="input-group-grid three-columns">
+                    <div class="form-group">
+                        <label for="scoopsStandard">Ложек на порцию</label>
+                        <input type="number" id="scoopsStandard" step="0.1" min="0">
+                    </div>
+                    <div class="form-group">
+                        <label for="waterStandard">Воды на порцию (мл)</label>
+                        <input type="number" id="waterStandard" step="1" min="0">
+                    </div>
+                    <div class="form-group">
+                        <label for="servingVolume_standard">Объем готовой порции (мл)</label>
+                        <input type="number" id="servingVolume_standard" step="1" min="0">
+                    </div>
+                </div>
+
+                <h4>Изокалорическое разведение (Ordinary)</h4>
+                <div class="input-group-grid three-columns">
+                    <div class="form-group">
+                        <label for="scoopsOrdinary">Ложек на порцию</label>
+                        <input type="number" id="scoopsOrdinary" step="0.1" min="0">
+                    </div>
+                    <div class="form-group">
+                        <label for="waterOrdinary">Воды на порцию (мл)</label>
+                        <input type="number" id="waterOrdinary" step="1" min="0">
+                    </div>
+                    <div class="form-group">
+                        <label for="servingVolume_ordinary">Объем готовой порции (мл)</label>
+                        <input type="number" id="servingVolume_ordinary" step="1" min="0">
+                    </div>
+                </div>
+
+                <div class="input-group-grid three-columns">
+                    <div class="form-group">
+                        <h4>Гиперкалорическое разведение (Hyper)</h4>
+                        <div class="input-group-grid three-columns">
+                            <div class="form-group">
+                                <label for="scoopsHyper">Ложек на порцию</label>
+                                <input type="number" id="scoopsHyper" step="0.1" min="0">
+                            </div>
+                            <div class="form-group">
+                                <label for="waterHyper">Воды на порцию (мл)</label>
+                                <input type="number" id="waterHyper" step="1" min="0">
+                            </div>
+                            <div class="form-group">
+                                <label for="servingVolume_hyper">Объем готовой порции (мл)</label>
+                                <input type="number" id="servingVolume_hyper" step="1" min="0">
+                            </div>
+                        </div>
+
+                        <div class="form-group">
+                            <label for="productApplicationMethod">Метод применения (краткое описание)</label>
+                            <textarea id="productApplicationMethod" rows="2"
+                                placeholder="Изокалорическое разведение: N ложек на M мл воды."></textarea>
+                        </div>
+
+                        <div class="form-group">
+                            <label for="productDescription">Описание (необязательно)</label>
+                            <textarea id="productDescription" rows="3"
+                                placeholder="Дополнительная информация о продукте"></textarea>
+                        </div>
+
+                        <div class="modal-actions">
+                            <button type="button" class="btn btn-secondary" id="cancelBtn">Отмена</button>
+                            <button type="submit" class="btn btn-primary" id="saveProductBtn"
+                                disabled>Сохранить</button>
+                        </div>
+            </form>
+
+            <hr>
+            <h3>Управление базой продуктов</h3>
+            <table id="productsTable" class="data-table">
+                <thead>
+                    <tr>
+                        <th>Название</th>
+                        <th>Ккал/100г</th>
+                        <th>Действия</th>
+                    </tr>
+                </thead>
+                <tbody id="productsTableBody">
+                </tbody>
+            </table>
         </div>
     </div>
 
-    <div id="additionalFluidResult">
-    </div>
-
-    <div id="authSection">
-        <h2>Аутентификация и управление продуктами</h2>
-        <p id="authStatus">Статус: Анонимный</p>
-        <form id="authForm" class="auth-form">
-            <input type="email" id="authEmail" placeholder="Email" required>
-            <input type="password" id="authPassword" placeholder="Пароль" required>
-            <button type="submit" class="btn btn-primary">Войти</button>
-            <button type="button" class="btn btn-secondary" id="signUpBtn">Регистрация</button>
-        </form>
-        <button type="button" class="btn btn-secondary" id="logoutBtn" style="display: none; margin-top: 10px;">Выйти</button>
-        <button type="button" class="btn btn-primary" id="searchMedpitanieBtn" style="margin-top: 10px;">
-            Управление продуктами
-        </button>
-    </div>
-
-
-</div>
-
-<div id="productModal" class="modal">
-    <div class="modal-content">
-        <span class="close-button" id="closeModalBtn">&times;</span>
-        <h2 id="modalTitle">Управление продуктами медицинского питания</h2>
-        <p id="modalAuthStatus" style="font-size: 0.9em; margin-bottom: 20px;"></p>
-        <div id="modalErrorMessage" class="error-message" style="display: none;"></div>
-
-        <form id="productForm">
-            <input type="hidden" id="productId">
-            <div class="form-group">
-                <label for="productName">Название продукта</label>
-                <input type="text" id="productName" required>
-            </div>
-
-            <div class="input-group-grid two-columns">
-                <div class="form-group">
-                    <label for="productCalories">Ккал на 100 г сухой смеси</label>
-                    <input type="number" id="productCalories" step="0.1" min="0" required>
-                </div>
-                <div class="form-group">
-                    <label for="scoopWeight">Вес одной мерной ложки (г)</label>
-                    <input type="number" id="scoopWeight" step="0.1" min="0" required>
-                </div>
-            </div>
-
-            <!-- Proteins, Fats, Carbs inputs removed -->
-
-            <div class="form-group">
-                <label for="packageAmount">Вес упаковки (г)</label>
-                <input type="number" id="packageAmount" step="1" min="0" value="400">
-            </div>
-
-            <h3>Параметры разведения (для расчета)</h3>
-            
-            <h4>Разведение "как на банке" (Standard)</h4>
-            <div class="input-group-grid three-columns">
-                <div class="form-group">
-                    <label for="scoopsStandard">Ложек на порцию</label>
-                    <input type="number" id="scoopsStandard" step="0.1" min="0">
-                </div>
-                <div class="form-group">
-                    <label for="waterStandard">Воды на порцию (мл)</label>
-                    <input type="number" id="waterStandard" step="1" min="0">
-                </div>
-                <div class="form-group">
-                    <label for="servingVolume_standard">Объем готовой порции (мл)</label>
-                    <input type="number" id="servingVolume_standard" step="1" min="0">
-                </div>
-            </div>
-
-            <h4>Изокалорическое разведение (Ordinary)</h4>
-            <div class="input-group-grid three-columns">
-                <div class="form-group">
-                    <label for="scoopsOrdinary">Ложек на порцию</label>
-                    <input type="number" id="scoopsOrdinary" step="0.1" min="0">
-                </div>
-                <div class="form-group">
-                    <label for="waterOrdinary">Воды на порцию (мл)</label>
-                    <input type="number" id="waterOrdinary" step="1" min="0">
-                </div>
-                <div class="form-group">
-                    <label for="servingVolume_ordinary">Объем готовой порции (мл)</label>
-                    <input type="number" id="servingVolume_ordinary" step="1" min="0">
-                </div>
-            </div>
-
-            <div class="input-group-grid three-columns">
-                <div class="form-group">
-            <h4>Гиперкалорическое разведение (Hyper)</h4>
-            <div class="input-group-grid three-columns">
-                <div class="form-group">
-                    <label for="scoopsHyper">Ложек на порцию</label>
-                    <input type="number" id="scoopsHyper" step="0.1" min="0">
-                </div>
-                <div class="form-group">
-                    <label for="waterHyper">Воды на порцию (мл)</label>
-                    <input type="number" id="waterHyper" step="1" min="0">
-                </div>
-                <div class="form-group">
-                    <label for="servingVolume_hyper">Объем готовой порции (мл)</label>
-                    <input type="number" id="servingVolume_hyper" step="1" min="0">
-                </div>
-            </div>
-
-            <div class="form-group">
-                <label for="productApplicationMethod">Метод применения (краткое описание)</label>
-                <textarea id="productApplicationMethod" rows="2"
-                          placeholder="Изокалорическое разведение: N ложек на M мл воды."></textarea>
-            </div>
-
-            <div class="form-group">
-                <label for="productDescription">Описание (необязательно)</label>
-                <textarea id="productDescription" rows="3"
-                          placeholder="Дополнительная информация о продукте"></textarea>
-            </div>
-
-            <div class="modal-actions">
-                <button type="button" class="btn btn-secondary" id="cancelBtn">Отмена</button>
-                <button type="submit" class="btn btn-primary" id="saveProductBtn" disabled>Сохранить</button>
-            </div>
-        </form>
-
-        <hr>
-        <h3>Управление базой продуктов</h3>
-        <table id="productsTable" class="data-table">
-            <thead>
-            <tr>
-                <th>Название</th>
-                <th>Ккал/100г</th>
-                <th>Действия</th>
-            </tr>
-            </thead>
-            <tbody id="productsTableBody">
-            </tbody>
-        </table>
-    </div>
-</div>
-
-<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-<script src="app.js"></script>
 </body>
 
 </html>
