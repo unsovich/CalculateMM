@@ -67,13 +67,13 @@ const SUPABASE_ANON_KEY = 'sb_publishable_x0GfxNq6Aq2UReH-IGO2iQ_x5zJLX4M';
 
 // ФИКС: Supabase библиотека уже создает глобальную переменную window.supabase
 // Используем её напрямую, не создаем новую const supabase
-let supabaseClient;
+let supabase;
 if (window.supabase && window.supabase.createClient) {
-    supabaseClient = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+    supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 } else {
     console.error("Ошибка: Библиотека Supabase не загружена. Проверьте подключение в index.html");
     // Создаем заглушку, чтобы избежать ошибок
-    supabaseClient = { auth: { getUser: () => ({ data: {} }), onAuthStateChange: () => { }, signInWithPassword: () => ({}), signUp: () => ({}), signOut: () => ({}) }, from: () => ({ select: () => ({}), insert: () => ({}), update: () => ({}), delete: () => ({}) }) };
+    supabase = { auth: { getUser: () => ({ data: {} }), onAuthStateChange: () => { }, signInWithPassword: () => ({}), signUp: () => ({}), signOut: () => ({}) }, from: () => ({ select: () => ({}), insert: () => ({}), update: () => ({}), delete: () => ({}) }) };
 }
 
 
@@ -124,11 +124,11 @@ function updateAuthUI(user) {
 
 async function signUpUser(email, password) {
     try {
-        const { error } = await supabaseClient.auth.signUp({ email, password });
+        const { error } = await supabase.auth.signUp({ email, password });
         if (error) throw new Error(error.message);
 
         showSuccess('Регистрация успешна! Проверьте почту для подтверждения.');
-        const { data: { user } } = await supabaseClient.auth.getUser();
+        const { data: { user } } = await supabase.auth.getUser();
         updateAuthUI(user);
     } catch (error) {
         showError('Ошибка регистрации: ' + error.message);
@@ -137,7 +137,7 @@ async function signUpUser(email, password) {
 
 async function signInUser(email, password) {
     try {
-        const { data, error } = await supabaseClient.auth.signInWithPassword({ email, password });
+        const { data, error } = await supabase.auth.signInWithPassword({ email, password });
         if (error) throw new Error(error.message);
 
         showSuccess('Вход выполнен успешно!');
@@ -149,7 +149,7 @@ async function signInUser(email, password) {
 
 async function signOutUser() {
     try {
-        const { error } = await supabaseClient.auth.signOut();
+        const { error } = await supabase.auth.signOut();
         if (error) throw new Error(error.message);
 
         showSuccess('Выход выполнен.');
@@ -195,7 +195,7 @@ function initAuthListeners() {
 
 var ProductsAPI = {
     async getAll() {
-        const { data, error } = await supabaseClient
+        const { data, error } = await supabase
             .from('products')
             .select('*')
             .order('name', { ascending: true });
@@ -207,7 +207,7 @@ var ProductsAPI = {
         const numericId = parseInt(id, 10);
         if (isNaN(numericId)) return null;
 
-        const { data, error } = await supabaseClient
+        const { data, error } = await supabase
             .from('products')
             .select('*')
             .eq('id', numericId)
@@ -222,21 +222,21 @@ var ProductsAPI = {
     },
 
     async addProduct(product) {
-        const { data, error } = await supabaseClient.from('products').insert([product]).select();
+        const { data, error } = await supabase.from('products').insert([product]).select();
         if (error) throw new Error(error.message);
         return data[0];
     },
 
     async updateProduct(id, product) {
         const numericId = parseInt(id, 10);
-        const { data, error } = await supabaseClient.from('products').update(product).eq('id', numericId).select();
+        const { data, error } = await supabase.from('products').update(product).eq('id', numericId).select();
         if (error) throw new Error(error.message);
         return data[0];
     },
 
     async deleteProduct(id) {
         const numericId = parseInt(id, 10);
-        const { error } = await supabaseClient.from('products').delete().eq('id', numericId);
+        const { error } = await supabase.from('products').delete().eq('id', numericId);
         if (error) throw new Error(error.message);
         return true;
     }
@@ -701,7 +701,7 @@ async function loadProductsTable() {
 
     try {
         const products = await ProductsAPI.getAll();
-        const { data: { user } } = await supabaseClient.auth.getUser();
+        const { data: { user } } = await supabase.auth.getUser();
         const isAuthenticated = !!user;
 
         if (products.length === 0) {
@@ -1017,7 +1017,7 @@ async function initializeApp() {
 
         // 2. Проверка статуса аутентификации при старте
         console.log('Checking auth status...'); // DEBUG
-        const { data: { user } } = await supabaseClient.auth.getUser();
+        const { data: { user } } = await supabase.auth.getUser();
         console.log('Auth user:', user); // DEBUG
         updateAuthUI(user);
 
@@ -1035,7 +1035,7 @@ async function initializeApp() {
         console.log('Products loaded'); // DEBUG
 
         // 5. Добавляем слушатель для отслеживания изменений сессии (вход/выход)
-        supabaseClient.auth.onAuthStateChange((event, session) => {
+        supabase.auth.onAuthStateChange((event, session) => {
             if (session) {
                 updateAuthUI(session.user);
             } else {
@@ -1060,7 +1060,7 @@ if (document.readyState === 'loading') {
 
 // Глобальные функции для кнопок
 window.editProduct = async function (productId) {
-    const { data: { user } } = await supabaseClient.auth.getUser();
+    const { data: { user } } = await supabase.auth.getUser();
     if (user) {
         await openModal(productId);
     } else {
@@ -1069,7 +1069,7 @@ window.editProduct = async function (productId) {
 };
 
 window.deleteProduct = async function (productId) {
-    const { data: { user } } = await supabaseClient.auth.getUser();
+    const { data: { user } } = await supabase.auth.getUser();
     if (!user) {
         showError('Для удаления продуктов необходимо войти в систему.');
         return;
