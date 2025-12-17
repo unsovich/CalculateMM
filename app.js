@@ -913,6 +913,8 @@ function initRationListeners() {
         if (element) {
             element.addEventListener('change', updatePatientMetrics);
             element.addEventListener('input', updatePatientMetrics);
+            // ФИКС: Добавлен blur для мобильных устройств, где change/input могут не срабатывать
+            element.addEventListener('blur', updatePatientMetrics);
         }
     });
 
